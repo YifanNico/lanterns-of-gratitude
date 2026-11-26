@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -24,8 +24,6 @@
     .camera-toggle{position:fixed;z-index:9;top:max(22px,env(safe-area-inset-top));right:max(24px,env(safe-area-inset-right));padding:10px 0 10px 12px;border-bottom:1px solid rgba(248,207,145,.5);transition:opacity .8s,color .2s}
     .camera-toggle:hover,.text-action:hover,.quiet-button:hover{color:#fff3d4}
     .camera-toggle:disabled{opacity:.5;cursor:wait}
-    .status-line{position:fixed;z-index:4;left:50%;bottom:max(31px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(88vw,640px);text-align:center;pointer-events:none;color:rgba(247,230,205,.72);font:10px/1.6 "Space Mono",monospace;letter-spacing:.1em;opacity:1;transition:opacity .45s ease}
-    .status-line.fade{opacity:0}
     .no-camera{position:fixed;z-index:6;left:50%;bottom:max(72px,calc(env(safe-area-inset-bottom) + 62px));transform:translateX(-50%);white-space:nowrap;padding:7px 10px;color:rgba(244,220,187,.62);font:9px/1.5 "Space Mono",monospace;letter-spacing:.09em;border-bottom:1px solid rgba(244,206,144,.22);cursor:pointer;transition:opacity .6s}
     .audio-controls{position:fixed;z-index:9;left:max(22px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:10px;opacity:.62;transition:opacity .8s}
     .audio-controls:hover{opacity:1}
@@ -64,14 +62,14 @@
     .finale-copy .recipient{margin-top:20px;font:10px/1.4 "Space Mono",monospace;letter-spacing:.18em;text-transform:uppercase}
     #readAgain{pointer-events:none;margin-top:24px;opacity:0;transition:opacity 1s}
     #finaleLayer.is-ready #readAgain{opacity:1;pointer-events:auto}
-    body.reading-mode .title,body.reading-mode .camera-toggle,body.reading-mode .audio-controls,body.reading-mode .status-line,body.reading-mode .no-camera{opacity:.13}
+    body.reading-mode .title,body.reading-mode .camera-toggle,body.reading-mode .audio-controls,body.reading-mode .no-camera{opacity:.13}
     body.reading-mode .debug-panel{opacity:.15}
-    body.finale-mode .title,body.finale-mode .status-line,body.finale-mode .camera-toggle,body.finale-mode .audio-controls{opacity:.38}
+    body.finale-mode .title,body.finale-mode .camera-toggle,body.finale-mode .audio-controls{opacity:.38}
     @media(max-width:600px){
       .eyebrow{font-size:8px;letter-spacing:.25em}h1{font-size:30px;letter-spacing:.07em}
       .subtitle{font-size:15px}.letter-paper{width:90vw;max-height:80dvh;padding:30px 25px}
       .letter-paper:after{inset:9px}.letter-body{font-size:16px;line-height:1.86}
-      .audio-controls{gap:7px}.status-line{font-size:9px;letter-spacing:.045em}
+      .audio-controls{gap:7px}
     }
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
@@ -80,8 +78,40 @@
     .text-action:disabled{opacity:.42;cursor:default}
     #readAgain{position:absolute;bottom:max(9vh,64px);left:50%;transform:translateX(-50%);color:#fff1cf}
     .finale-copy{text-shadow:0 2px 8px #2b150c,0 1px 24px #0e0807}
-    @media(max-width:600px){.title{top:65px}.status-line{bottom:42px;width:96vw}.audio-controls{bottom:12px}.no-camera{bottom:82px}}
-  #flightHint{font:13px/1.55 "Noto Serif SC",serif;text-align:center;color:#735534;min-height:3.1em;margin:19px 0 0}.letter-actions{padding-top:7px}</style>
+    @media(max-width:600px){.title{top:65px}.audio-controls{bottom:12px}.no-camera{bottom:82px}}
+  #flightHint{font:13px/1.55 "Noto Serif SC",serif;text-align:center;color:#735534;min-height:3.1em;margin:19px 0 0}.letter-actions{padding-top:7px}
+    #welcome{width:min(92vw,34rem);border:0;padding:24px 12px;color:#fff4dc;text-align:center;background:transparent;
+      font:15px/1.8 "Noto Serif SC",serif;text-shadow:0 1px 12px #100b07}
+    #welcome::backdrop{background:radial-gradient(ellipse at center,rgba(7,8,16,.91),rgba(7,8,16,.52) 54%,rgba(7,8,16,.12))}
+    #welcome h2{margin:0 0 16px;font:500 clamp(23px,4vw,32px)/1.45 "Noto Serif SC",serif}
+    #gestureGuide{margin:0}.welcome-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 18px;margin:22px 0 12px}
+    .welcome-actions button{background:transparent;border:0;border-bottom:1px solid #aa9065;color:#f8e6c6;padding:8px 6px;min-height:44px;font:inherit;cursor:pointer}
+    .welcome-actions button:first-child{background:#f4dfb7;color:#372917;padding-inline:18px;border-radius:2px}
+    #welcomeNote{margin:0 auto;max-width:31em;font:12px/1.65 "Noto Serif SC",serif;color:#d9cbb7}
+    body:has(#welcome[open]) .camera-toggle{visibility:hidden}
+    #readingLayer{padding: max(8px,env(safe-area-inset-top)) 3vw max(8px,env(safe-area-inset-bottom))}
+    .letter-paper{width:min(620px,94vw);max-height:calc(100dvh - max(24px,env(safe-area-inset-top) + env(safe-area-inset-bottom) + 12px));overflow:hidden;
+      display:grid;grid-template-rows:minmax(0,auto) auto auto;padding:clamp(16px,3.8vh,34px) clamp(18px,4vw,42px)}
+    .letter-content{overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin}
+    .letter-title{font-size:clamp(23px,3.5vw,32px);margin:0 0 10px}.letter-rule{margin-bottom:13px}
+    .letter-recipient{font-size:16px;margin-bottom:4px}.letter-body{font-size:clamp(15px,1.55vw,18px);line-height:1.75}
+    .letter-body p{margin:0 0 .55em}.letter-body p:last-child{margin:0}
+    .letter-signature{margin:12px 0 0;font-size:19px}.letter-date{margin-top:3px}
+    #flightHint{position:relative;margin:13px 0 0;padding-top:8px;border-top:1px solid #b797693d;min-height:3.6em;font-size:12px}
+    .letter-actions{padding-top:0;gap:24px}.letter-actions button{min-height:32px;font:13px/1.4 "Noto Serif SC",serif}
+    body.reading-mode .title{visibility:hidden}
+    @media(max-height:650px){.letter-paper{padding:12px 20px}.letter-body{font-size:15px;line-height:1.55}
+      .letter-rule{display:none}.letter-body p{margin-bottom:.4em}.letter-signature{margin-top:6px}#flightHint{margin-top:6px}}
+    @media(orientation:landscape) and (max-height:530px){.letter-paper{width:min(94vw,920px)}
+      .letter-content{display:grid;grid-template-columns:minmax(130px,.7fr) minmax(0,2fr);grid-template-rows:auto auto 1fr auto;column-gap:24px}
+      .letter-recipient,.letter-title,.letter-signature,.letter-date{grid-column:1}.letter-signature{align-self:end}
+      .letter-body{grid-area:1/2/5/3}.letter-title{font-size:22px}.letter-rule{display:none}}
+  @media (orientation:landscape) and (max-height:355px){
+  .letter-paper{width:96vw;padding:9px 16px}
+  .letter-content{grid-template-columns:minmax(104px,.5fr) minmax(0,2fr);column-gap:13px}
+  .letter-body{font-size:14px;line-height:1.45}
+  #flightHint{min-height:0;margin:4px 0 0;padding-top:4px}
+}</style>
 </head>
 <body>
   <div id="stage" aria-label="LANTERNS OF GRATITUDE immersive particle artwork"></div>
@@ -90,9 +120,17 @@
     <h1>感恩灯笼</h1>
     <p class="subtitle">——From Nico</p>
   </header>
-  <p class="status-line" id="statusLine">A little light is waiting for you.</p>
+  <dialog id="welcome" aria-labelledby="welcomeTitle" aria-describedby="gestureGuide">
+    <h2 id="welcomeTitle">开启摄像头，用手接灯？</h2>
+    <p id="gestureGuide">移动手掌环顾夜空，张掌停稳片刻接住天灯。<br>读完后，握拳收信，或张掌停稳再上抬放飞。</p>
+    <div class="welcome-actions">
+      <button id="startCamera" type="button">开启摄像头</button>
+      <button id="startPointer" type="button">不开启，用鼠标或触摸</button>
+    </div>
+    <p id="welcomeNote" role="status">手势仅在本机识别。鼠标或触摸模式下，拖动转动视角，轻点接灯。</p>
+  </dialog>
   <button id="cameraToggle" class="camera-toggle" type="button" aria-pressed="false">Enable Camera</button>
-  <button id="continueNoCamera" class="no-camera" type="button">Continue without Camera</button>
+  <button id="openLetter" class="no-camera" type="button" hidden>重新展开</button>
   <div class="audio-controls" aria-label="Audio settings">
     <button id="muteButton" class="audio-button" type="button" aria-label="Mute music">♪</button>
     <input id="volume" type="range" min="0" max="1" value="0.42" step="0.01" aria-label="Volume">
@@ -125,8 +163,8 @@
       </div>
       <p id="flightHint" aria-live="polite"></p>
       <div class="letter-actions">
-        <button id="closeLetter" class="text-action" type="button" hidden>Close</button>
-        <button id="releaseLantern" class="text-action" type="button" hidden>Release the lantern</button>
+        <button id="closeLetter" class="text-action" type="button" hidden>收起信件</button>
+        <button id="releaseLantern" class="text-action" type="button" hidden>放飞天灯</button>
       </div>
     </article>
   </section>
@@ -413,6 +451,13 @@
       if(state==='ON'&&interaction.state==='IDLE')interaction.armed=true;
       cameraState = state;
       cameraError = error;
+      if(welcome.open){
+        startCamera.disabled=state==='LOADING';
+        startCamera.textContent=state==='ERROR'?'重试摄像头':'开启摄像头';
+        if(state==='LOADING')welcomeNote.textContent='请在浏览器中允许使用摄像头，正在准备手势识别…';
+        if(state==='ERROR')welcomeNote.textContent='摄像头未能启动。可以重试，或选择鼠标与触摸继续。';
+        if(state==='ON')welcome.close();
+      }
       pointerMode=state==='ON'?false:pointerMode||state==='OFF'||state==='ERROR'; syncUI();
       cameraToggle.setAttribute('aria-pressed', String(state === 'ON' || state === 'LOADING'));
       cameraToggle.textContent = state === 'ON' ? 'Disable Camera' : state === 'LOADING' ? 'Loading…' : 'Enable Camera';
@@ -675,11 +720,12 @@
       setInteractionState('INITIALIZING CAMERA');
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('CAMERA API UNAVAILABLE');
-        cameraStream = await navigator.mediaDevices.getUserMedia({
+        const acquiredStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } }
         });
-        if (generation !== cameraGeneration) { cameraStream.getTracks().forEach((track) => track.stop()); return; }
+        if (generation !== cameraGeneration) { acquiredStream.getTracks().forEach((track) => track.stop()); return; }
+        cameraStream=acquiredStream;
         cameraStream.getVideoTracks().forEach((track) => {
           track.addEventListener('ended', () => {
             if (generation === cameraGeneration) stopCamera('ERROR', 'CAMERA DISCONNECTED');
@@ -702,14 +748,16 @@
           minHandPresenceConfidence: 0.55,
           minTrackingConfidence: 0.5
         };
+        let detector;
         try {
-          handLandmarker = await HandLandmarker.createFromOptions(vision, modelOptions);
+          detector = await HandLandmarker.createFromOptions(vision, modelOptions);
         } catch (gpuError) {
           console.warn('GPU delegate unavailable; retrying MediaPipe on CPU.', gpuError);
           modelOptions.baseOptions.delegate = 'CPU';
-          handLandmarker = await HandLandmarker.createFromOptions(vision, modelOptions);
+          detector = await HandLandmarker.createFromOptions(vision, modelOptions);
         }
-        if (generation !== cameraGeneration) { handLandmarker.close(); handLandmarker = null; return; }
+        if (generation !== cameraGeneration) { detector.close(); return; }
+        handLandmarker=detector;
         lastVideoTime = -1; lastDetectionAt = 0; lastTimestampMs = 0;
         inferenceFrames = 0; lastInferenceAt = 0;
         lastHandSeenAt = 0; lastHandTargetAt = 0; handLostSent = false;
@@ -717,6 +765,7 @@
         setCameraState('ON'); setInteractionState('READY');
         scheduleVideoDetection(generation);
       } catch (error) {
+        if(generation!==cameraGeneration)return;
         console.error('Camera/MediaPipe initialization failed:', error);
         const message = error?.name === 'NotAllowedError' ? 'PERMISSION DENIED'
           : error?.name === 'NotFoundError' ? 'NO CAMERA FOUND'
@@ -1067,7 +1116,7 @@
         if(uShowTime>=0.){gl_PointSize*=1.8;vAlpha*=spark*uSparkFade;vColor=vec3(1.,.67,.26)*(1.+spark);}vRandom=aRandom;`);
     const $=id=>document.getElementById(id);
     const layer=$('readingLayer'),paper=$('letterPaper'),finish=$('finaleLayer');
-    const manual=$('continueNoCamera'),release=$('releaseLantern'),close=$('closeLetter'),again=$('readAgain');
+    const manual=$('openLetter'),release=$('releaseLantern'),close=$('closeLetter'),again=$('readAgain');
     const music=$('bgm'),volume=$('volume'),mute=$('muteButton');
     let pointerMode=false,volumeFactor=1;
     const message=GRATITUDE_MESSAGE;
@@ -1083,7 +1132,7 @@
       layer.inert=!on;layer.setAttribute('aria-hidden',String(!on));
       layer.classList.toggle('is-visible',on);layer.classList.toggle('is-open',on);
       pieces.forEach(p=>p.classList.toggle('revealed',on));
-      if(on)paper.scrollTop=0;
+      if(on)paper.querySelector('.letter-content').scrollTop=0;
     }
     layer.inert=true;finish.inert=true;
     function unlock(){if(!music.hasAttribute('src'))music.src='data:audio/mpeg;base64,'+$('soundtrack').textContent.trim();if(music.paused){music.volume=Number(volume.value)*volumeFactor;music.play().catch(()=>{});}}
@@ -1099,12 +1148,9 @@
     const eventAllowed=()=>interaction.state==='READING'&&interaction.ready;
     function syncUI(){
       const state=interaction.state;
-      const ask=state==='IDLE'&& !pointerMode && cameraState!=='ON';
-      manual.hidden=!(ask||state==='CLOSED');manual.textContent=state==='CLOSED'?'Open':'Continue without Camera';
+      manual.hidden=state!=='CLOSED';
       close.hidden=release.hidden=state!=='READING';release.disabled=!eventAllowed();
       document.body.classList.toggle('reading-mode',['READING','CENTERING'].includes(state));
-      const messages={IDLE:cameraState==='ERROR'?'Camera unavailable · Tap the sky to begin.':pointerMode?'Drag to explore · Tap to receive a lantern.':ask?'A little light is waiting for you.':'Open your palm to receive a lantern.',DESCENDING:'A little light is finding its way to you.',OPENING:'This message is for you.',CENTERING:'This message is for you.',READING:'Take your time.',COLLAPSING:'Hold this moment close.',CLOSED:'Open your palm to read it again.',RELEASING:'May this light stay with you.',FINALE:'',RESETTING:''};
-      $('statusLine').textContent=messages[state];
       syncFlightHint();
     }
     function syncFlightHint(){
@@ -1177,8 +1223,19 @@
       if(!pointerMode||!['IDLE','DESCENDING','OPENING','CLOSED','COLLAPSING'].includes(interaction.state))return;
       const hit=coordinates(e.clientX/innerWidth,e.clientY/innerHeight);if(hit){palmTargetWorld.copy(hit);if(!hasPalmTarget)palmSmoothedWorld.copy(hit);hasPalmTarget=true;}
     }
-    manual.onclick=()=>{if(interaction.state==='CLOSED'){enter('OPENING');return;}if(cameraState==='LOADING')stopCamera();pointerMode=true;controls.enabled=true;syncUI();};
-    renderer.domElement.addEventListener('pointermove',pointer);
+    const welcome=$('welcome'), startCamera=$('startCamera'), welcomeNote=$('welcomeNote');
+    function choosePointer(){
+      if(cameraState==='LOADING')stopCamera();
+      pointerMode=true;
+      controls.enabled=true;
+      welcome.close();
+      syncUI();
+    }
+    startCamera.onclick=enableCamera;
+    $('startPointer').onclick=choosePointer;
+    welcome.addEventListener('cancel',e=>{e.preventDefault();choosePointer();});
+    manual.onclick=()=>{if(interaction.state==='CLOSED')enter('OPENING');};
+    welcome.showModal();
     const surface=renderer.domElement;
     surface.addEventListener('pointerdown',e=>{
       if(!e.isPrimary){tap=null;return;}
@@ -1268,9 +1325,6 @@
           handHalo.visible=true;handHalo.scale.setScalar(1.6+1.5*q);handHalo.material.opacity=.08+.15*q;
         }else{handHalo.visible=false;}
         energy+=q*.4;
-        const line=!seen?'移动手掌转动视角，张掌停稳接灯。':!interaction.armed?'先握拳或移开手掌，再重新张开。':
-          charging?'保持掌心平稳，让灯光凝聚。':'移动手掌探索夜空，张掌停稳接灯。';
-        if($('statusLine').textContent!==line)$('statusLine').textContent=line;
       }else if(state==='DESCENDING'){
         const q=fast(e/CONFIG.DESCEND_DURATION);if(hasPalmTarget)curve.v3.lerp(above(),1-Math.exp(-dt*5));
         curve.getPoint(q,lampPosition);interactionGroup.scale.setScalar(.34+.66*q);
