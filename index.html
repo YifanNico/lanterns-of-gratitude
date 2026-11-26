@@ -73,6 +73,8 @@
     <div class="debug-row"><span>Video</span><span id="debugVideo">WAITING</span></div>
     <div class="debug-row"><span>Inference</span><span id="debugInference">0</span></div>
     <div class="debug-row"><span>Hands</span><span id="debugHands">0</span></div>
+    <div class="debug-row"><span>Fingers E/B</span><span id="debugFingerMetrics">E0/4 · B0/4</span></div>
+    <div class="debug-row"><span>Y-DIST / Reach</span><span id="debugReachMetrics">0.000 / 0.00</span></div>
     <div class="debug-row"><span>Gesture</span><span id="debugGesture">NO HAND</span></div>
     <div class="debug-row"><span>Palm Position</span><span id="debugPalm">—</span></div>
     <div class="debug-row"><span>Hold Time</span><span id="debugHold">0.0 s</span></div>
@@ -123,7 +125,13 @@
       handLossGraceMs: 260,
       handLostEventMs: 1500,
       handExitRearmMs: 600,
-      positionSmoothing: 10
+      positionSmoothing: 10,
+      gesture: {
+        referenceOpenYDistance: 0.15,
+        closedYDistance: 0.10,
+        openNormalizedReach: 1.35,
+        closedNormalizedReach: 1.45
+      }
     };
 
     const stage = document.querySelector('#stage');
@@ -239,6 +247,8 @@
     const debugEls = {
       camera: document.querySelector('#debugCamera'), hands: document.querySelector('#debugHands'),
       video: document.querySelector('#debugVideo'), inference: document.querySelector('#debugInference'),
+      fingers: document.querySelector('#debugFingerMetrics'),
+      reach: document.querySelector('#debugReachMetrics'),
       gesture: document.querySelector('#debugGesture'), palm: document.querySelector('#debugPalm'),
       hold: document.querySelector('#debugHold'), fps: document.querySelector('#debugFps'),
       interaction: document.querySelector('#debugInteraction')
@@ -254,6 +264,7 @@
     let lastDetectionAt = 0;
     let lastTimestampMs = 0;
     let handCount = 0;
+    let fingerMetrics = { extended: 0, curled: 0, indexYDistance: 0, averageReach: 0 };
     let displayedGesture = 'NO HAND';
     let candidateGesture = 'UNKNOWN';
     let candidateGestureAt = 0;
@@ -320,6 +331,8 @@
       debugEls.camera.textContent = cameraError ? `${cameraState} · ${cameraError}` : cameraState;
       debugEls.camera.classList.toggle('error', cameraState === 'ERROR');
       debugEls.hands.textContent = String(handCount);
+      debugEls.fingers.textContent = `E${fingerMetrics.extended}/4 · B${fingerMetrics.curled}/4`;
+      debugEls.reach.textContent = `${fingerMetrics.indexYDistance.toFixed(3)} / ${fingerMetrics.averageReach.toFixed(2)}`;
       const videoReady = cameraVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && cameraVideo.videoWidth > 0;
       debugEls.video.textContent = videoReady
         ? `${cameraVideo.paused ? 'PAUSED' : 'LIVE'} ${cameraVideo.videoWidth}×${cameraVideo.videoHeight}`
@@ -360,16 +373,35 @@
       const palmWidth = distance3(landmarks[5], landmarks[17]);
       const wristToMcp = distance3(landmarks[0], landmarks[9]);
       const handScale = Math.max(palmWidth * 0.72, wristToMcp * 0.86, 1e-4);
-      const fingers = [[5, 6, 8], [9, 10, 12], [13, 14, 16], [17, 18, 20]];
-      let extended = 0, curled = 0;
-      for (const [base, pip, tip] of fingers) {
-        const angle = jointAngleDegrees(landmarks[base], landmarks[pip], landmarks[tip]);
-        const reach = distance3(landmarks[tip], palm) / handScale;
-        if (angle >= 145 && reach >= 1.28) extended++;
-        else if (angle <= 128 || reach <= 1.02) curled++;
+      const fingers = [[5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]];
+      let extended = 0, curled = 0, reachTotal = 0;
+      for (const [mcp, pip, dip, tip] of fingers) {
+        const pipAngle = jointAngleDegrees(landmarks[mcp], landmarks[pip], landmarks[dip]);
+        const dipAngle = jointAngleDegrees(landmarks[pip], landmarks[dip], landmarks[tip]);
+        const angle = (pipAngle + dipAngle) * 0.5;
+        const palmReach = distance3(landmarks[tip], palm) / handScale;
+        const wristReach = distance3(landmarks[tip], landmarks[0]) / handScale;
+        reachTotal += wristReach;
+        // Either a straight joint chain or a long normalized reach can mark a finger open.
+        if (angle >= 138 || palmReach >= 1.18 || wristReach >= 1.72) extended++;
+        else if (angle <= 122 && palmReach <= 1.10 && wristReach <= 1.55) curled++;
       }
-      const gesture = extended === 4 ? 'OPEN' : curled >= 3 ? 'CLOSED' : 'UNKNOWN';
-      return { gesture, palm };
+      const averageReach = reachTotal / fingers.length;
+      // The reference repo uses |indexTip.y - wrist.y| > 0.15. Keep that cue,
+      // but pair it with hand-size-normalized reach and multiple fingers.
+      const indexYDistance = Math.abs(landmarks[8].y - landmarks[0].y);
+      const referenceOpen = indexYDistance >= CONFIG.gesture.referenceOpenYDistance
+        && averageReach >= CONFIG.gesture.openNormalizedReach
+        && curled <= 2;
+      const openByShape = extended >= 3 && curled <= 1;
+      const closedByShape = curled >= 3;
+      const closedByReach = indexYDistance <= CONFIG.gesture.closedYDistance
+        && averageReach <= CONFIG.gesture.closedNormalizedReach
+        && extended <= 1;
+      const gesture = openByShape || referenceOpen
+        ? 'OPEN'
+        : closedByShape || closedByReach ? 'CLOSED' : 'UNKNOWN';
+      return { gesture, palm, fingerMetrics: { extended, curled, indexYDistance, averageReach } };
     }
 
     function mapPalmToWorld(palm) {
@@ -435,6 +467,7 @@
       handCount = hands.length;
       if (!hands.length) {
         displayedGesture = 'NO HAND';
+        fingerMetrics = { extended: 0, curled: 0, indexYDistance: 0, averageReach: 0 };
         candidateGesture = 'NO HAND'; candidateGestureAt = now;
         holdDurationMs = 0;
         openSince = 0;
@@ -458,7 +491,8 @@
 
       handLostSent = false;
       lastHandSeenAt = now;
-      const { gesture, palm } = classifyHand(hands[0]);
+      const { gesture, palm, fingerMetrics: nextFingerMetrics } = classifyHand(hands[0]);
+      fingerMetrics = nextFingerMetrics;
       displayedGesture = gesture;
       if (gesture !== candidateGesture) { candidateGesture = gesture; candidateGestureAt = now; }
       else if (now - candidateGestureAt >= CONFIG.gestureStabilityMs) applyStableGesture(gesture, now, palm);
