@@ -40,6 +40,8 @@
     }
     .camera-toggle:hover { background: rgba(38, 30, 44, .7); border-color: rgba(255, 222, 164, .72); }
     .camera-toggle:disabled { cursor: wait; opacity: .58; }
+    .release-button { position: fixed; z-index: 6; right: max(24px, env(safe-area-inset-right)); bottom: max(30px, env(safe-area-inset-bottom)); padding: 12px 18px; border: 1px solid rgba(248,207,145,.48); border-radius: 999px; background: rgba(19,14,25,.62); color: #fff0d0; font: 10px/1 Inter, sans-serif; letter-spacing: .2em; text-transform: uppercase; backdrop-filter: blur(10px); cursor:pointer; }
+    .release-button:hover { background: rgba(82,48,31,.76); border-color: rgba(255,225,164,.82); }
     .debug-panel {
       position: fixed; z-index: 5; top: 20px; left: 20px; width: min(260px, calc(100vw - 40px));
       padding: 13px 15px 14px; border: 1px solid rgba(245, 205, 141, .18); border-radius: 10px;
@@ -67,6 +69,7 @@
   <div class="footer"><div class="rule"></div><p>May every grateful thought find its way home</p></div>
   <div class="hint">DRAG TO EXPLORE</div>
   <button id="cameraToggle" class="camera-toggle" type="button" aria-pressed="false">Enable Camera</button>
+  <button id="releaseButton" class="release-button" type="button" hidden>Release</button>
   <aside id="debugPanel" class="debug-panel" aria-live="polite">
     <div class="debug-heading"><span>Hand Tracking</span><span>LOCAL</span></div>
     <div class="debug-row"><span>Camera</span><span id="debugCamera">OFF</span></div>
@@ -115,24 +118,21 @@
       bloomRadius: 0.72,
       bloomThreshold: 0.16,
       qualityScale: 1,
-      maxPixelRatio: 1.8,
+      OPEN_HOLD_MS: 800, CLOSE_HOLD_MS: 500,
+      DESCEND_DURATION: 2.65, HOVER_DURATION: 0.5, EXPLODE_DURATION: 0.78,
+      COLLAPSE_DURATION: 0.5, RELEASE_DURATION: 2.8,
+      SPHERE_RADIUS: 8.6, SPHERE_ROTATION_SPEED: 0.22, PARTICLE_ENERGY: 1.0,
+      HAND_FOLLOW_DAMPING: 4.6, HAND_VERTICAL_OFFSET: 3.6,
+      TRAIL_PARTICLE_COUNT: 1200, BLOOM_PEAK_STRENGTH: 1.28, MAX_PIXEL_RATIO: 1.65,
       backgroundDepth: [24, 94],
       starFieldRadius: 92,
       DEBUG: true,
       handDetectionIntervalMs: 70,
       gestureStabilityMs: 160,
-      openHoldMs: 800,
       handLossGraceMs: 260,
       handLostEventMs: 1500,
       handExitRearmMs: 600,
       positionSmoothing: 10,
-      interaction: {
-        closedHoldMs: 500,
-        morphSeconds: 1.35, awakeningSeconds: 1.8, condenseSeconds: 2.5, descentSeconds: 3.0,
-        hoverSeconds: 0.52, explodeSeconds: 1.25, unfoldSeconds: 3.4, collapseSeconds: 1.45,
-        releaseSeconds: 3.2, cooldownSeconds: 1.5, explodeRadius: 9.5, vortexSpeed: 0.48,
-        trailLength: 6.2, energyStrength: 1.0, handFollowDamping: 4.8, bloomPeak: 1.42
-      },
       gesture: {
         referenceOpenYDistance: 0.15,
         closedYDistance: 0.10,
@@ -149,7 +149,7 @@
     camera.lookAt(0, 3.0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.maxPixelRatio) * CONFIG.qualityScale);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO) * CONFIG.qualityScale);
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -181,18 +181,11 @@
       uniform float uTime;
       uniform float uPixelRatio;
       uniform float uSize;
-      uniform float uMorphProgress;
       uniform float uExplode;
-      uniform float uExplodeRadius;
       uniform float uEnergy;
+      uniform float uSphereRotationSpeed;
       uniform vec3 uHandPos;
       uniform vec3 uLanternPos;
-      uniform float uMorphFrom;
-      uniform float uMorphTo;
-      uniform float uShockwave;
-      uniform float uVortex;
-      uniform float uVortexSpeed;
-      uniform float uTrailLength;
       attribute float aRandom;
       attribute float aSize;
       attribute float aPhase;
@@ -200,72 +193,38 @@
       attribute float aSpeed;
       attribute float aDelay;
       attribute vec3 aColor;
-      attribute vec3 aLanternPos;
       attribute vec3 aSpherePos;
-      attribute vec3 aVortexPos;
-      attribute vec3 aRibbonPos;
-      attribute vec3 aScrollPos;
-      attribute vec3 aScatterPos;
-      attribute vec3 aHeartPos;
       varying vec3 vColor;
       varying float vAlpha;
       varying float vRandom;
       varying float vLayer;
       varying float vHeight;
       varying float vEnergy;
-      float easeMorph(float x) { return x*x*(3.0-2.0*x); }
-      vec3 shapeAt(float id) {
-        vec3 p = mix(position, aLanternPos, step(0.5,id));
-        p = mix(p, aSpherePos, step(0.5, id));
-        p = mix(p, aVortexPos, step(1.5, id));
-        p = mix(p, aRibbonPos, step(2.5, id));
-        p = mix(p, aScrollPos, step(3.5, id));
-        p = mix(p, aScatterPos, step(4.5, id));
-        p = mix(p, aHeartPos, step(5.5, id));
-        return p;
-      }
       void main() {
-        float t = uTime;
-        float phase = aPhase + aRandom * 6.28318;
-        float morph = easeMorph(clamp((uMorphProgress-aDelay*0.12)/0.88, 0.0, 1.0));
-        vec3 p = mix(shapeAt(uMorphFrom), shapeAt(uMorphTo), morph);
-        float radial = length(p.xz);
-        float noiseA = sin(t*0.43 + p.y*0.62 + phase) * cos(t*0.31 + p.x*0.36);
-        float noiseB = sin(t*0.91 + p.x*1.7 + p.z*1.3 + phase*0.71);
-        float noiseC = cos(t*0.23 + p.y*0.39 + phase*1.3);
-        float flutter = (noiseA*0.11 + noiseB*0.035 + noiseC*0.045) * (0.35 + uEnergy*0.65);
-        p += normalize(vec3(cos(phase), sin(phase*0.73), sin(phase+1.4))) * flutter;
-        float sway = sin(t*0.34 + aPhase*0.35) * 0.10;
-        p.x += sway + sin(t*0.52+p.y*0.22+phase)*0.055;
-        p.z += cos(t*0.29+p.y*0.31+phase*0.5)*0.075;
-        float wave = sin(t*2.0 - p.y*0.88 + phase + aRandom*6.28);
-        float energyWave = smoothstep(-0.25, 0.95, wave) * (0.12 + 0.55*uEnergy);
-        p *= 1.0 + uExplode * (0.10 + aRandom*0.62);
-        if (uExplode > 0.001) {
-          vec3 dir = normalize(p + vec3(0.0001));
-          p += dir * uExplode * (0.24 + aRandom*uExplodeRadius);
-          p += vec3(noiseB, noiseA, noiseC) * uExplode * 0.28;
-        }
-        vec3 world = p + uLanternPos;
-        float handField = exp(-length(world-uHandPos)*0.018) * uVortex;
-        float angle = (uVortexSpeed + aSpeed*0.22) * t + phase + length(world-uHandPos)*0.13;
-        vec2 rel = world.xz-uHandPos.xz;
-        vec2 swirl = vec2(cos(angle)*rel.x - sin(angle)*rel.y, sin(angle)*rel.x + cos(angle)*rel.y);
-        world.xz = mix(world.xz, uHandPos.xz + swirl, handField*0.22);
-        world += vec3(noiseB, noiseA, noiseC) * handField * 0.09;
-        vec4 mvPosition = modelViewMatrix * vec4(world, 1.0);
-        gl_Position = projectionMatrix * mvPosition;
-        float perspective = 82.0 / max(1.0, -mvPosition.z);
-        float burstSize = 1.0 + uExplode*0.75 + uEnergy*0.16 + energyWave*0.18 + uShockwave*0.36;
-        float shimmer = 0.78 + 0.22*sin(t*(1.25+aSpeed)+phase);
-        gl_PointSize = clamp(aSize*uSize*uPixelRatio*perspective*shimmer*burstSize, 0.65, 24.0);
-        float high = smoothstep(0.55, 1.0, aLayer) * (0.34 + energyWave*0.55);
-        vec3 warm = mix(vec3(0.72,0.19,0.075), vec3(1.0,0.72,0.33), clamp(uEnergy+high,0.0,1.0));
-        vColor = mix(aColor, warm, clamp(uEnergy*0.42+uExplode*0.26,0.0,0.78));
-        if (aRandom > 0.985 || aLayer > 0.94) vColor = mix(vColor, vec3(1.0,0.96,0.83), 0.48+uEnergy*0.22);
-        vAlpha = (0.53+0.35*energyWave+0.18*uEnergy+uShockwave*0.24) * (0.78+0.22*sin(t*1.9+phase));
-        vAlpha *= 1.0-uExplode*0.13;
-        vRandom=aRandom; vLayer=aLayer; vHeight=p.y; vEnergy=uEnergy;
+        vec3 p = position;
+        float phase = aPhase + aRandom*6.28318;
+        float amount = clamp((uExplode-aDelay*0.075)/0.925,0.0,1.0);
+        p = mix(p,aSpherePos,amount);
+        float angle = uTime*uSphereRotationSpeed*amount + phase*0.12*amount;
+        float c=cos(angle), s=sin(angle);
+        p.xz=mat2(c,-s,s,c)*p.xz;
+        float breath=sin(uTime*0.85+phase)*0.13 + sin(uTime*0.43+p.y*0.44+phase*0.4)*0.10;
+        float flutter=sin(uTime*(1.4+aSpeed)+phase)*0.035*(0.25+uEnergy);
+        p += normalize(vec3(cos(phase),sin(phase*0.73),sin(phase+1.2)))*(flutter+breath*amount);
+        p *= 1.0 + amount*(0.045+0.035*sin(uTime*1.8+phase));
+        vec4 mvPosition=modelViewMatrix*vec4(p,1.0);
+        gl_Position=projectionMatrix*mvPosition;
+        float perspective=82.0/max(1.0,-mvPosition.z);
+        float pulse=0.86+0.14*sin(uTime*(1.2+aSpeed)+phase);
+        float energyGain=1.0+uEnergy*0.20+amount*0.16;
+        gl_PointSize=clamp(aSize*uSize*uPixelRatio*perspective*pulse*energyGain,0.65,22.0);
+        float high=smoothstep(0.60,1.0,aLayer);
+        vec3 warm=mix(vec3(0.62,0.16,0.075),vec3(1.0,0.73,0.38),clamp(uEnergy+high*0.25,0.0,1.0));
+        vColor=mix(aColor,warm,clamp(uEnergy*0.32+amount*0.28,0.0,0.76));
+        if(aRandom>0.986)vColor=mix(vColor,vec3(1.0,0.97,0.85),0.65);
+        float shimmer=0.78+0.22*sin(uTime*1.9+phase);
+        vAlpha=(0.58+0.27*high+0.16*uEnergy)*shimmer*(0.92+amount*0.18);
+        vRandom=aRandom;vLayer=aLayer;vHeight=p.y;vEnergy=uEnergy;
       }
     `;
     const fragmentShader = `
@@ -275,18 +234,17 @@
       varying float vLayer;
       varying float vHeight;
       varying float vEnergy;
-      void main() {
+      void main(){
         vec2 uv=gl_PointCoord-0.5;
         float r=length(uv)*2.0;
         float core=exp(-r*r*19.0);
-        float halo=exp(-r*r*5.2);
-        float soft=smoothstep(1.0,0.12,r);
-        float flicker=0.78+0.22*sin(vRandom*437.0+vHeight*19.0+vEnergy*4.0);
-        float layerGain=mix(0.72,1.58,clamp(vLayer,0.0,1.0));
-        float alpha=(core*0.92+halo*0.34)*soft*vAlpha*flicker*layerGain;
-        if(alpha<0.009) discard;
-        vec3 gold=mix(vColor,vec3(1.0,0.91,0.70),core*(0.20+vEnergy*0.35));
-        vec3 color=gold*(0.68+core*(1.75+vEnergy*1.2));
+        float halo=exp(-r*r*5.3);
+        float edge=smoothstep(1.0,0.12,r);
+        float sparkle=0.78+0.22*sin(vRandom*437.0+vHeight*18.0+vEnergy*2.0);
+        float alpha=(core*0.92+halo*0.32)*edge*vAlpha*sparkle;
+        if(alpha<0.009)discard;
+        vec3 color=vColor*(0.72+core*(1.65+vEnergy*0.8));
+        color=mix(color,vec3(1.0,0.92,0.73),core*vEnergy*0.16);
         gl_FragColor=vec4(color,alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -294,10 +252,8 @@
     `;
     const particleMaterial = (size, opacity = 1) => new THREE.ShaderMaterial({
       uniforms: {
-        uTime:{value:0}, uPixelRatio:{value:renderer.getPixelRatio()}, uSize:{value:size},
-        uHandPos:{value:new THREE.Vector3()}, uLanternPos:{value:new THREE.Vector3()},
-        uMorphProgress:{value:0}, uMorphFrom:{value:0}, uMorphTo:{value:0},
-        uExplode:{value:0}, uExplodeRadius:{value:CONFIG.interaction.explodeRadius}, uEnergy:{value:0}, uShockwave:{value:0}, uVortex:{value:0}, uVortexSpeed:{value:CONFIG.interaction.vortexSpeed}, uTrailLength:{value:CONFIG.interaction.trailLength}
+        uTime:{value:0},uPixelRatio:{value:renderer.getPixelRatio()},uSize:{value:size},
+        uExplode:{value:0},uEnergy:{value:0.12},uSphereRotationSpeed:{value:CONFIG.SPHERE_ROTATION_SPEED},uHandPos:{value:new THREE.Vector3()},uLanternPos:{value:new THREE.Vector3()}
       },
       vertexShader, fragmentShader, transparent: true, depthWrite: false,
       blending: THREE.AdditiveBlending, opacity, toneMapped: true
@@ -588,13 +544,13 @@
 
       if (stableGesture === 'OPEN' && openSince) {
         holdDurationMs = now - openSince;
-        if (holdDurationMs >= CONFIG.openHoldMs && !openEventSent) {
+        if (holdDurationMs >= CONFIG.OPEN_HOLD_MS && !openEventSent) {
           openEventSent = true;
           emitInteraction('PALM_OPEN', { palm, heldMs: holdDurationMs });
         } else if (!openEventSent) setInteractionState('OPEN HOLD');
       } else if (stableGesture === 'CLOSED') {
         holdDurationMs = closedSince ? now-closedSince : 0;
-        if(closedSince && holdDurationMs>=CONFIG.interaction.closedHoldMs && !closedEventSent){closedEventSent=true;emitInteraction('PALM_CLOSED',{palm,heldMs:holdDurationMs});}
+        if(closedSince && holdDurationMs>=CONFIG.CLOSE_HOLD_MS && !closedEventSent){closedEventSent=true;emitInteraction('PALM_CLOSED',{palm,heldMs:holdDurationMs});}
       } else {
         holdDurationMs = 0;
       }
@@ -784,32 +740,19 @@
       colors[k] = color.r; colors[k + 1] = color.g; colors[k + 2] = color.b;
       sizes[i] = role === 'flame' ? 1.15 + rand() * 2.15 : role === 'rim' ? 0.72 + rand() * 1.15 : 0.48 + rand() * 1.03;
     }
-    // Seven GPU-resident destination shapes; every main particle keeps the same identity across all forms.
-    const spherePos = new Float32Array(pos.length), vortexPos = new Float32Array(pos.length), ribbonPos = new Float32Array(pos.length);
-    const scrollPos = new Float32Array(pos.length), scatterPos = new Float32Array(pos.length), heartPos = new Float32Array(pos.length);
-    const delays = new Float32Array(CONFIG.mainLanternParticles);
-    for (let i=0;i<CONFIG.mainLanternParticles;i++) {
-      const k=i*3, r=randoms[i], ph=phases[i], h=r;
-      const zUnit=rand()*2-1, az=rand()*Math.PI*2, sr=Math.sqrt(1-zUnit*zUnit);
-      const radius=2.8+Math.pow(rand(),0.72)*CONFIG.interaction.explodeRadius*0.78;
-      spherePos[k]=Math.cos(az)*sr*radius; spherePos[k+1]=zUnit*radius; spherePos[k+2]=Math.sin(az)*sr*radius;
-      const turns=3.1+rand()*2.6, theta=h*turns*Math.PI*2+ph;
-      const vr=0.7+h*5.3;
-      vortexPos[k]=Math.cos(theta)*vr; vortexPos[k+1]=(h-0.5)*11; vortexPos[k+2]=Math.sin(theta)*vr;
-      const ribbonT=h*Math.PI*9+ph*0.16, side=(rand()-0.5)*0.62;
-      ribbonPos[k]=Math.sin(ribbonT)*5.4+side*Math.cos(ribbonT*0.5);
-      ribbonPos[k+1]=(h-0.5)*9.2;
-      ribbonPos[k+2]=Math.cos(ribbonT*0.72)*2.5+side;
-      // A gently curled rectangular scroll cloud, with extra concentration along the paper edge.
-      const edge=r<0.26, sx=(rand()*2-1)*3.6, sy=(rand()*2-1)*2.35;
-      scrollPos[k]=edge ? Math.sign(sx||1)*3.8 : sx;
-      scrollPos[k+1]=edge ? Math.sign(sy||1)*2.55 : sy;
-      scrollPos[k+2]=(rand()-0.5)*0.42 + Math.sin(scrollPos[k]*0.6)*0.22;
-      scatterPos[k]=(rand()*2-1)*12.5; scatterPos[k+1]=(rand()*2-1)*13; scatterPos[k+2]=(rand()*2-1)*9;
-      // Classic volumetric heart surface with a small depth undulation.
-      const ht=ph, hx=16*Math.pow(Math.sin(ht),3), hy=13*Math.cos(ht)-5*Math.cos(2*ht)-2*Math.cos(3*ht)-Math.cos(4*ht);
-      const shell=(0.78+0.22*rand())*0.34;
-      heartPos[k]=hx*shell; heartPos[k+1]=hy*shell; heartPos[k+2]=(rand()-0.5)*2.4+Math.sin(ht*2)*0.35;
+    // One precomputed volumetric target: dense core, body volume, and sparse outer halo.
+    const spherePos=new Float32Array(pos.length), delays=new Float32Array(CONFIG.mainLanternParticles);
+    for(let i=0;i<CONFIG.mainLanternParticles;i++){
+      const k=i*3,band=rand(),z=rand()*2-1,angle=rand()*Math.PI*2,xy=Math.sqrt(1-z*z);
+      const directionX=Math.cos(angle)*xy,directionY=z,directionZ=Math.sin(angle)*xy;
+      let radius;
+      if(band<0.20) radius=Math.pow(rand(),0.58)*CONFIG.SPHERE_RADIUS*0.34;
+      else if(band<0.80) radius=Math.pow(rand(),0.78)*CONFIG.SPHERE_RADIUS*0.77;
+      else radius=CONFIG.SPHERE_RADIUS*(0.83+rand()*0.34);
+      const noise=(rand()-0.5)*0.44;
+      spherePos[k]=directionX*radius+noise;
+      spherePos[k+1]=directionY*radius+(rand()-0.5)*0.34;
+      spherePos[k+2]=directionZ*radius+noise;
       delays[i]=rand();
     }
     const mainGeo = new THREE.BufferGeometry();
@@ -820,19 +763,15 @@
     mainGeo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
     mainGeo.setAttribute('aLayer', new THREE.BufferAttribute(layers, 1));
     mainGeo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
-    mainGeo.setAttribute('aLanternPos',new THREE.BufferAttribute(pos,3));
-    mainGeo.setAttribute('aDelay', new THREE.BufferAttribute(delays,1));
+    mainGeo.setAttribute('aDelay',new THREE.BufferAttribute(delays,1));
     mainGeo.setAttribute('aSpherePos',new THREE.BufferAttribute(spherePos,3));
-    mainGeo.setAttribute('aVortexPos',new THREE.BufferAttribute(vortexPos,3));
-    mainGeo.setAttribute('aRibbonPos',new THREE.BufferAttribute(ribbonPos,3));
-    mainGeo.setAttribute('aScrollPos',new THREE.BufferAttribute(scrollPos,3));
-    mainGeo.setAttribute('aScatterPos',new THREE.BufferAttribute(scatterPos,3));
-    mainGeo.setAttribute('aHeartPos',new THREE.BufferAttribute(heartPos,3));
+    const interactionGroup=new THREE.Group();
+    interactionGroup.position.set(0,14,-18);
+    interactionGroup.scale.setScalar(0.34);
+    scene.add(interactionGroup);
     const mainLantern = new THREE.Points(mainGeo, particleMaterial(CONFIG.particleSize * 1.72));
-    mainLantern.position.set(0,0,0);
-    mainLantern.material.uniforms.uLanternPos.value.set(0,lanternY,-1.5);
     mainLantern.frustumCulled = false;
-    scene.add(mainLantern);
+    interactionGroup.add(mainLantern);
 
     // Build many lanterns into one draw call; per-particle anchors keep each lantern independently drifting.
     const bgCount = CONFIG.backgroundLanterns;
@@ -953,224 +892,200 @@
       leafGroup.add(mesh); leaves.push(mesh);
     }
 
-    // Reusable shockwave, cinematic particle tail, and in-scene gratitude letter.
-    const shockSystems=[];
-    const shockVertex=`
-      uniform float uTime; uniform float uPixelRatio; uniform float uProgress; uniform vec3 uCenter;
-      attribute float aRandom; attribute float aPhase; attribute float aSize; varying float vAlpha; varying float vRand;
-      void main(){
-        float radius=0.25+uProgress*(8.0+aRandom*4.0);
-        float twist=uProgress*0.55+aPhase;
-        vec3 p=vec3(position.x*cos(twist)-position.y*sin(twist),position.x*sin(twist)+position.y*cos(twist),position.z);
-        p*=radius; p+=uCenter;
-        vec4 mv=modelViewMatrix*vec4(p,1.0); gl_Position=projectionMatrix*mv;
-        gl_PointSize=clamp(aSize*uPixelRatio*(58.0/max(1.0,-mv.z))*(1.0-uProgress*0.45),0.8,14.0);
-        vAlpha=(1.0-uProgress)*0.72*(0.55+0.45*sin(uTime*3.0+aPhase));
-        vRand=aRandom;
-      }`;
-    const shockFragment=`
-      varying float vAlpha; varying float vRand;
-      void main(){float r=length(gl_PointCoord-0.5)*2.0; float glow=exp(-r*r*12.0); float edge=smoothstep(1.0,0.12,r); float a=glow*edge*vAlpha*(0.78+0.22*vRand); if(a<0.01)discard; gl_FragColor=vec4(vec3(1.0,0.69+0.2*vRand,0.35),a);}`;
-    for(let ring=0;ring<3;ring++){
-      const n=900, p=new Float32Array(n*3), rr=new Float32Array(n), ph=new Float32Array(n), sz=new Float32Array(n);
-      for(let i=0;i<n;i++){const a=rand()*Math.PI*2,k=i*3;p[k]=Math.cos(a);p[k+1]=Math.sin(a);p[k+2]=(rand()-0.5)*0.22;rr[i]=rand();ph[i]=a;sz[i]=0.55+rand()*1.7;}
-      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setAttribute('aRandom',new THREE.BufferAttribute(rr,1));g.setAttribute('aPhase',new THREE.BufferAttribute(ph,1));g.setAttribute('aSize',new THREE.BufferAttribute(sz,1));
-      const m=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uPixelRatio:{value:renderer.getPixelRatio()},uProgress:{value:2},uCenter:{value:new THREE.Vector3()}},vertexShader:shockVertex,fragmentShader:shockFragment,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
-      const points=new THREE.Points(g,m);points.frustumCulled=false;scene.add(points);shockSystems.push({points,material:m,offset:ring*0.19});
+    // A pooled, lightweight comet tail follows the single interaction group.
+    const trailN=CONFIG.TRAIL_PARTICLE_COUNT;
+    const trailP=new Float32Array(trailN*3),trailC=new Float32Array(trailN*3),trailS=new Float32Array(trailN),trailR=new Float32Array(trailN),trailPh=new Float32Array(trailN);
+    for(let i=0;i<trailN;i++){
+      const k=i*3;trailP[k]=(rand()-0.5)*1.8;trailP[k+1]=-rand();trailP[k+2]=(rand()-0.5)*1.4;
+      trailC[k]=1;trailC[k+1]=0.52+rand()*0.34;trailC[k+2]=0.16+rand()*0.12;
+      trailS[i]=0.45+Math.pow(rand(),4)*2.5;trailR[i]=rand();trailPh[i]=rand()*6.283;
     }
-    const trailN=4200, trailP=new Float32Array(trailN*3),trailC=new Float32Array(trailN*3),trailS=new Float32Array(trailN),trailR=new Float32Array(trailN),trailPh=new Float32Array(trailN);
-    for(let i=0;i<trailN;i++){const k=i*3;trailP[k]=(rand()-0.5)*2;trailP[k+1]=-rand();trailP[k+2]=(rand()-0.5)*2;trailC[k]=1;trailC[k+1]=0.52+rand()*0.34;trailC[k+2]=0.18+rand()*0.12;trailS[i]=0.4+Math.pow(rand(),5)*3.2;trailR[i]=rand();trailPh[i]=rand()*6.283;}
-    const trailGeo=new THREE.BufferGeometry();trailGeo.setAttribute('position',new THREE.BufferAttribute(trailP,3));trailGeo.setAttribute('aColor',new THREE.BufferAttribute(trailC,3));trailGeo.setAttribute('aSize',new THREE.BufferAttribute(trailS,1));trailGeo.setAttribute('aRandom',new THREE.BufferAttribute(trailR,1));trailGeo.setAttribute('aPhase',new THREE.BufferAttribute(trailPh,1));trailGeo.setAttribute('aLayer',new THREE.BufferAttribute(trailR,1));trailGeo.setAttribute('aSpeed',new THREE.BufferAttribute(trailR,1));
-    const trailMat=particleMaterial(1.2);trailMat.vertexShader=trailMat.vertexShader.replace('vec3 p = mix(position, aLanternPos, step(0.5,id));',`
-      vec3 p=position; float tail=aRandom*uTrailLength;
-      p.x*=0.3+tail*0.28; p.z*=0.3+tail*0.18;
-      p.x+=sin(uTime*1.1+tail*1.5+aPhase)*tail*0.13;
-      p.z+=cos(uTime*0.82+tail+aPhase)*tail*0.09;
+    const trailGeo=new THREE.BufferGeometry();
+    trailGeo.setAttribute('position',new THREE.BufferAttribute(trailP,3));
+    trailGeo.setAttribute('aColor',new THREE.BufferAttribute(trailC,3));
+    trailGeo.setAttribute('aSize',new THREE.BufferAttribute(trailS,1));
+    trailGeo.setAttribute('aRandom',new THREE.BufferAttribute(trailR,1));
+    trailGeo.setAttribute('aPhase',new THREE.BufferAttribute(trailPh,1));
+    trailGeo.setAttribute('aLayer',new THREE.BufferAttribute(trailR,1));
+    trailGeo.setAttribute('aSpeed',new THREE.BufferAttribute(trailR,1));
+    const trailMat=particleMaterial(1.0);
+    trailMat.vertexShader=trailMat.vertexShader.replace('vec3 p = position;',`
+      vec3 p=position;
+      float tail=aRandom*6.2;
+      p.x*=0.25+tail*0.22;p.z*=0.25+tail*0.16;
+      p.x+=sin(uTime+tail+aPhase)*tail*0.11;
+      p.z+=cos(uTime*0.8+tail+aPhase)*tail*0.08;
       p.y-=tail;
     `);
-    const cometTrail=new THREE.Points(trailGeo,trailMat);cometTrail.frustumCulled=false;cometTrail.visible=false;scene.add(cometTrail);
+    const cometTrail=new THREE.Points(trailGeo,trailMat);
+    cometTrail.frustumCulled=false;cometTrail.visible=false;interactionGroup.add(cometTrail);
 
-    const paperCanvas=document.createElement('canvas');paperCanvas.width=1024;paperCanvas.height=720;
+    // One curved CanvasTexture plane keeps the bilingual message crisp and inexpensive.
+    const paperCanvas=document.createElement('canvas');paperCanvas.width=1024;paperCanvas.height=640;
     const paperCtx=paperCanvas.getContext('2d');
     const paperTexture=new THREE.CanvasTexture(paperCanvas);paperTexture.colorSpace=THREE.SRGBColorSpace;
-    const paperMaterial=new THREE.MeshBasicMaterial({map:paperTexture,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
-    const paperGeometry=new THREE.PlaneGeometry(7.4,5.2,36,24);
-    const paperPositions=paperGeometry.attributes.position;
-    for(let i=0;i<paperPositions.count;i++){const x=paperPositions.getX(i),y=paperPositions.getY(i);paperPositions.setZ(i,0.11*Math.sin(x*0.74)*Math.cos(y*0.55));}
+    const paperMaterial=new THREE.MeshBasicMaterial({map:paperTexture,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,depthTest:false,toneMapped:false});
+    const paperGeometry=new THREE.PlaneGeometry(7.4,4.6,24,16);
+    const paperAttr=paperGeometry.attributes.position;
+    for(let i=0;i<paperAttr.count;i++){const x=paperAttr.getX(i),y=paperAttr.getY(i);paperAttr.setZ(i,0.075*Math.sin(x*0.68)*Math.cos(y*0.52));}
     paperGeometry.computeVertexNormals();
-    const gratitudePaper=new THREE.Mesh(paperGeometry,paperMaterial);gratitudePaper.visible=false;scene.add(gratitudePaper);
-    let lastPaperDraw=-1;
-    function drawGratitudePaper(reveal){
-      const w=paperCanvas.width,h=paperCanvas.height,ctx=paperCtx;
+    const gratitudePaper=new THREE.Mesh(paperGeometry,paperMaterial);
+    gratitudePaper.position.set(0,0.05,4.5);gratitudePaper.renderOrder=10;gratitudePaper.visible=false;
+    interactionGroup.add(gratitudePaper);
+    function drawGratitude(reveal){
+      const ctx=paperCtx,w=paperCanvas.width,h=paperCanvas.height;
       ctx.clearRect(0,0,w,h);
-      const grad=ctx.createLinearGradient(0,0,w,h);grad.addColorStop(0,'#fff8e9');grad.addColorStop(0.55,'#f8edda');grad.addColorStop(1,'#ead9bb');
-      ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
-      for(let i=0;i<2100;i++){const x=(i*173)%w,y=(i*317)%h;ctx.fillStyle='rgba(125,88,43,'+(0.018+(i%5)*0.003)+')';ctx.fillRect(x,y,1+(i%3),1);}
-      ctx.strokeStyle='rgba(170,113,48,.52)';ctx.lineWidth=3;ctx.strokeRect(35,35,w-70,h-70);
-      ctx.strokeStyle='rgba(170,113,48,.18)';ctx.lineWidth=1;ctx.strokeRect(49,49,w-98,h-98);
-      ctx.textAlign='center';ctx.fillStyle='#ad7740';ctx.font='small-caps 24px Georgia,serif';ctx.fillText('A NOTE OF GRATITUDE',w/2,128);
+      const paper=ctx.createLinearGradient(0,0,w,h);paper.addColorStop(0,'rgba(255,248,231,.94)');paper.addColorStop(.55,'rgba(249,238,215,.93)');paper.addColorStop(1,'rgba(234,216,184,.92)');
+      ctx.fillStyle=paper;ctx.fillRect(0,0,w,h);
+      for(let i=0;i<1700;i++){const x=(i*173)%w,y=(i*317)%h;ctx.fillStyle='rgba(113,79,39,.035)';ctx.fillRect(x,y,1+(i%2),1);}
+      ctx.strokeStyle='rgba(165,112,58,.42)';ctx.lineWidth=2;ctx.strokeRect(30,30,w-60,h-60);
+      ctx.textAlign='center';ctx.fillStyle='#a67643';ctx.font='small-caps 21px Georgia,serif';ctx.fillText('A NOTE OF GRATITUDE',w/2,136);
       const lines=[
-        {text:'感谢这一年里，',y:268,font:'38px "Noto Serif SC","Songti SC",serif'},
-        {text:'那些曾经给予我温暖、陪伴和善意的人。',y:332,font:'32px "Noto Serif SC","Songti SC",serif'},
-        {text:'Thank you for making ordinary days',y:440,font:'italic 27px Georgia,serif'},
-        {text:'extraordinary.',y:486,font:'italic 27px Georgia,serif'}
+        {text:'感谢这一年里，',y:278,font:'40px "Noto Serif SC","Songti SC",serif'},
+        {text:'那些曾经给予我温暖、陪伴和善意的人。',y:342,font:'34px "Noto Serif SC","Songti SC",serif'},
+        {text:'Thank you for being part of my world.',y:462,font:'italic 31px Georgia,serif'}
       ];
-      lines.forEach((line,i)=>{const a=THREE.MathUtils.clamp((reveal-i*0.17)/0.34,0,1);ctx.globalAlpha=a;ctx.font=line.font;ctx.fillStyle=i<2?'#55402c':'#72563a';ctx.fillText(line.text,w/2,line.y);});
-      ctx.globalAlpha=1;ctx.fillStyle='rgba(173,119,64,.78)';ctx.font='18px Georgia,serif';ctx.fillText('✦   ✦   ✦',w/2,570);
+      lines.forEach((line,i)=>{ctx.globalAlpha=THREE.MathUtils.clamp((reveal-i*0.22)/0.42,0,1);ctx.font=line.font;ctx.fillStyle=i<2?'#54402d':'#765a3b';ctx.fillText(line.text,w/2,line.y);});
+      ctx.globalAlpha=1;ctx.fillStyle='rgba(165,112,58,.72)';ctx.font='18px Georgia,serif';ctx.fillText('✦   ✦   ✦',w/2,546);
       paperTexture.needsUpdate=true;
     }
-    drawGratitudePaper(0);
+    drawGratitude(0);
 
-    const shapeUniformMaterials=()=>[mainLantern.material];
-    let interaction={state:'IDLE',enteredAt:performance.now(),morphFrom:0,morphTo:0,morphStarted:performance.now(),morphDuration:1,energy:0.12,explode:0,center:new THREE.Vector3(0,lanternY,-1.5),from:new THREE.Vector3(),bezier:null,readingSince:0,shockStarted:0,releaseTarget:new THREE.Vector3(0,18,-56),lastEvent:'IDLE',lastHandSpeed:0};
-    const smoothstep=x=>{x=THREE.MathUtils.clamp(x,0,1);return x*x*(3-2*x);};
-    function setMorph(from,to,duration){
-      interaction.morphFrom=from;interaction.morphTo=to;interaction.morphStarted=performance.now();interaction.morphDuration=duration;
-      for(const mat of shapeUniformMaterials()){mat.uniforms.uMorphFrom.value=from;mat.uniforms.uMorphTo.value=to;mat.uniforms.uMorphProgress.value=0;}
+    const fireCore=new THREE.Mesh(new THREE.SphereGeometry(0.28,18,14),new THREE.MeshBasicMaterial({color:0xffe3a1,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+    fireCore.position.set(0,-3.25,0);fireCore.visible=false;interactionGroup.add(fireCore);
+    const releaseButton=document.querySelector('#releaseButton');
+    const interaction={state:'IDLE',enteredAt:performance.now(),readingSince:0,explode:0,energy:0.14,descentCurve:null,releaseCurve:null,releaseStart:new THREE.Vector3(),releaseCalled:false,lastDraw:0};
+    const stateElapsed=now=>(now-interaction.enteredAt)/1000;
+    const clamp01=x=>THREE.MathUtils.clamp(x,0,1);
+    const easeOut=x=>1-Math.pow(1-clamp01(x),3);
+    function enterState(state){interaction.state=state;interaction.enteredAt=performance.now();setInteractionState(state);}
+    function setExplode(value){
+      interaction.explode=clamp01(value);
+      mainLantern.material.uniforms.uExplode.value=interaction.explode;
     }
-    function transition(state){
-      interaction.state=state;interaction.enteredAt=performance.now();setInteractionState(state);
-      if(state==='AWAKENING'){
-        mainLantern.scale.setScalar(1);mainLantern.visible=true;
-        interaction.center.set(palmSmoothedWorld.x*0.55,Math.max(14,palmSmoothedWorld.y+12),-8);
-        setMorph(5,2,CONFIG.interaction.awakeningSeconds);
-        interaction.energy=0.15;interaction.shockStarted=performance.now();summonCore.visible=true;
-      }else if(state==='CONDENSING'){setMorph(2,0,CONFIG.interaction.condenseSeconds);interaction.energy=0.8;}
-      else if(state==='DESCENDING'){
-        interaction.from.copy(interaction.center);
-        const end=palmSmoothedWorld.clone().add(new THREE.Vector3(0,3.5,0));
-        const p1=interaction.from.clone().add(new THREE.Vector3(2.2,4,-3));
-        const p2=end.clone().add(new THREE.Vector3(-1.8,7,-2));
-        interaction.bezier=new THREE.CubicBezierCurve3(interaction.from.clone(),p1,p2,end);
-        interaction.shockStarted=performance.now();cometTrail.visible=true;
-      }else if(state==='HOVERING'){
-        interaction.center.copy(palmSmoothedWorld).add(new THREE.Vector3(0,3.5,0));
-        interaction.energy=0.9;cometTrail.visible=false;
-      }else if(state==='EXPLODING'){
-        setMorph(interaction.morphTo,1,CONFIG.interaction.explodeSeconds);
-        interaction.energy=1.2;interaction.shockStarted=performance.now();
-      }else if(state==='UNFOLDING'){
-        interaction.energy=0.9;
-        setMorph(1,2,CONFIG.interaction.unfoldSeconds*0.32);
-        gratitudePaper.visible=true;gratitudePaper.material.opacity=0;gratitudePaper.scale.setScalar(0.62);
-      }else if(state==='READING'){
-        interaction.morphFrom=3;interaction.morphTo=4;
-        mainLantern.material.uniforms.uMorphFrom.value=3;mainLantern.material.uniforms.uMorphTo.value=4;mainLantern.material.uniforms.uMorphProgress.value=1;
-        interaction.readingSince=performance.now();interaction.energy=0.58;
-      }else if(state==='COLLAPSING'){
-        interaction.energy=1.1;gratitudePaper.material.opacity=0.5;
-        setMorph(interaction.morphTo,0,CONFIG.interaction.collapseSeconds);
-      }else if(state==='RELEASING'){
-        interaction.energy=0.82;cometTrail.visible=true;
-        setMorph(interaction.morphTo,0,CONFIG.interaction.morphSeconds);
-        const drift=palmSmoothedWorld.clone().add(new THREE.Vector3((Math.random()-0.5)*9,22,-34));
-        interaction.releaseTarget.copy(drift);
-      }else if(state==='COOLDOWN'){
-        interaction.energy=0.18;cometTrail.visible=false;gratitudePaper.visible=false;
-      }else if(state==='IDLE'){interaction.energy=0.12;}
+    function targetOverPalm(){return palmSmoothedWorld.clone().add(new THREE.Vector3(0,CONFIG.HAND_VERTICAL_OFFSET,0));}
+    function beginDescent(){
+      enterState('DESCENDING');controls.autoRotate=false;releaseButton.hidden=true;
+      const from=interactionGroup.position.clone(),to=targetOverPalm();
+      const p1=from.clone().add(new THREE.Vector3(2.5,4,-1.5));
+      const p2=to.clone().add(new THREE.Vector3(-1.8,7,-1.0));
+      interaction.descentCurve=new THREE.CubicBezierCurve3(from,p1,p2,to);
+      interactionGroup.scale.setScalar(0.36);cometTrail.visible=true;
     }
-    function handleInteractionEvent(name){
-      interaction.lastEvent=name;
-      const st=interaction.state;
+    function beginOpening(){
+      enterState('OPENING');controls.autoRotate=false;interaction.openingFrom=interaction.explode;
+      interaction.energy=0.65;fireCore.visible=true;
+    }
+    function beginRelease(){
+      enterState('RELEASING');interaction.releaseStart.copy(interactionGroup.position);
+      const end=interaction.releaseStart.clone().add(new THREE.Vector3((rand()-0.5)*8,21,-24));
+      const c1=interaction.releaseStart.clone().add(new THREE.Vector3(-1,8,-4));
+      const c2=end.clone().add(new THREE.Vector3(3,-5,-5));
+      interaction.releaseCurve=new THREE.CubicBezierCurve3(interaction.releaseStart.clone(),c1,c2,end);
+      interaction.releaseCalled=false;interaction.releaseExplode=interaction.explode;cometTrail.visible=true;releaseButton.disabled=true;
+    }
+    function onLanternReleased(){
+      window.dispatchEvent(new CustomEvent('lanternreleased'));
+    }
+    if(typeof window.onLanternReleased!=='function')window.onLanternReleased=onLanternReleased;
+    function handleGestureEvent(name){
       if(name==='PALM_OPEN'){
-        if(st==='IDLE'||st==='COOLDOWN'){transition('AWAKENING');return;}
-        if(st==='HOVERING'){transition('EXPLODING');return;}
-      }
-      if(name==='PALM_CLOSED'&&(st==='READING'||st==='UNFOLDING'||st==='HOVERING'))transition('COLLAPSING');
-      if(name==='PALM_UP'&&st==='READING'&&performance.now()-interaction.readingSince>=3000)transition('RELEASING');
+        if(interaction.state==='IDLE')beginDescent();
+        else if(interaction.state==='CLOSED')beginOpening();
+      }else if(name==='PALM_CLOSED'&&interaction.state==='READING'){
+        enterState('CLOSED');interaction.collapseFrom=interaction.explode;interaction.collapseFlashDone=false;releaseButton.hidden=true;
+      }else if(name==='PALM_UP'&&interaction.state==='READING'&&performance.now()-interaction.readingSince>=5000)beginRelease();
     }
-    window.addEventListener('PALM_OPEN',()=>handleInteractionEvent('PALM_OPEN'));
-    window.addEventListener('PALM_CLOSED',()=>handleInteractionEvent('PALM_CLOSED'));
-    window.addEventListener('PALM_UP',(e)=>handleInteractionEvent('PALM_UP',e.detail));
-    window.addEventListener('HAND_LOST',()=>{if(['DETECTING'].includes(interaction.state))transition('IDLE');});
-    function triggerShockwaves(now){
-      shockSystems.forEach(({material,offset})=>{material.uniforms.uProgress.value=THREE.MathUtils.clamp((now-interaction.shockStarted)/950-offset,0,1);material.uniforms.uCenter.value.copy(palmSmoothedWorld);});
-    }
-    function updateSequence(now,delta,t){
-      const elapsed=(now-interaction.enteredAt)/1000, mats=shapeUniformMaterials();
-      const morphT=THREE.MathUtils.clamp((now-interaction.morphStarted)/(interaction.morphDuration*1000),0,1);
-      for(const m of mats)m.uniforms.uMorphProgress.value=morphT;
-      const handVelocity=lastFramePalm.distanceTo(palmSmoothedWorld)/Math.max(delta,0.001);interaction.lastHandSpeed=THREE.MathUtils.damp(interaction.lastHandSpeed,Math.min(handVelocity,18),4,delta);
-      const energyTarget=interaction.state==='IDLE'?0.12:interaction.state==='READING'?0.58:interaction.state==='EXPLODING'?1.15:0.9;
-      interaction.energy=THREE.MathUtils.damp(interaction.energy,energyTarget,2.2,delta);
-      interaction.explode=interaction.state==='EXPLODING'?Math.sin(Math.PI*THREE.MathUtils.clamp(elapsed/CONFIG.interaction.explodeSeconds,0,1)):0;
-      interaction.explode*=interaction.state==='EXPLODING'?1:0;
-      if(['HOVERING','EXPLODING','UNFOLDING','READING','COLLAPSING'].includes(interaction.state)){
-        const target=palmSmoothedWorld.clone().add(new THREE.Vector3(0,interaction.state==='READING'?3.25:3.5,0));
-        interaction.center.lerp(target,1-Math.exp(-delta*CONFIG.interaction.handFollowDamping));
-      }
-      if(interaction.state==='AWAKENING'&&elapsed>=CONFIG.interaction.awakeningSeconds)transition('CONDENSING');
-      else if(interaction.state==='CONDENSING'&&elapsed>=CONFIG.interaction.condenseSeconds)transition('DESCENDING');
-      else if(interaction.state==='DESCENDING'){
-        const q=smoothstep(elapsed/CONFIG.interaction.descentSeconds);
-        if(interaction.bezier)interaction.center.copy(interaction.bezier.getPoint(q));
-        if(elapsed>=CONFIG.interaction.descentSeconds){transition('HOVERING');}
-      }else if(interaction.state==='HOVERING'){
-        const target=palmSmoothedWorld.clone().add(new THREE.Vector3(0,3.5,0));
-        interaction.center.lerp(target,1-Math.exp(-delta*CONFIG.interaction.handFollowDamping));
-        if(elapsed>=CONFIG.interaction.hoverSeconds)transition('EXPLODING');
-      }else if(interaction.state==='EXPLODING'){
-        interaction.center.lerp(palmSmoothedWorld.clone().add(new THREE.Vector3(0,3.2,0)),1-Math.exp(-delta*4.4));
-        if(elapsed>=CONFIG.interaction.explodeSeconds){interaction.explode=0;transition('UNFOLDING');}
-      }else if(interaction.state==='UNFOLDING'){
-        const a=CONFIG.interaction.unfoldSeconds;
-        if(elapsed<a*0.32){const p=THREE.MathUtils.clamp(elapsed/(a*0.32),0,1);for(const m of mats){m.uniforms.uMorphFrom.value=1;m.uniforms.uMorphTo.value=2;m.uniforms.uMorphProgress.value=p;}}
-        else if(elapsed<a*0.64){const p=THREE.MathUtils.clamp((elapsed-a*0.32)/(a*0.32),0,1);for(const m of mats){m.uniforms.uMorphFrom.value=2;m.uniforms.uMorphTo.value=3;m.uniforms.uMorphProgress.value=p;}}
-        else {const p=THREE.MathUtils.clamp((elapsed-a*0.64)/(a*0.36),0,1);for(const m of mats){m.uniforms.uMorphFrom.value=3;m.uniforms.uMorphTo.value=4;m.uniforms.uMorphProgress.value=p;}}
-        if(elapsed>=a)transition('READING');
-      }else if(interaction.state==='COLLAPSING'&&elapsed>=CONFIG.interaction.collapseSeconds){
-        gratitudePaper.visible=false;transition('HOVERING');
-      }else if(interaction.state==='RELEASING'){
-        const q=smoothstep(elapsed/CONFIG.interaction.releaseSeconds);
-        interaction.center.lerp(interaction.releaseTarget,1-Math.exp(-delta*(2.6+q*0.8)));
-        if(elapsed>=CONFIG.interaction.releaseSeconds){
-          interaction.center.copy(interaction.releaseTarget);mainLantern.scale.setScalar(0.28);
-          transition('COOLDOWN');
+    window.addEventListener('PALM_OPEN',()=>handleGestureEvent('PALM_OPEN'));
+    window.addEventListener('PALM_CLOSED',()=>handleGestureEvent('PALM_CLOSED'));
+    window.addEventListener('PALM_UP',()=>handleGestureEvent('PALM_UP'));
+    window.addEventListener('HAND_LOST',()=>{ /* retain the last smoothed target and pause in place */ });
+    releaseButton.addEventListener('click',()=>{if(interaction.state==='READING'&&performance.now()-interaction.readingSince>=5000)beginRelease();});
+
+    function updateInteraction(now,delta,t){
+      const elapsed=stateElapsed(now);
+      const mainMat=mainLantern.material,trailMaterial=cometTrail.material;
+      mainMat.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      trailMaterial.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      if(interaction.state==='IDLE'){
+        controls.autoRotate=true;interaction.energy=0.14;setExplode(0);
+        fireCore.visible=false;gratitudePaper.visible=false;cometTrail.visible=false;
+      }else if(interaction.state==='DESCENDING'){
+        const q=easeOut(elapsed/CONFIG.DESCEND_DURATION),target=targetOverPalm();
+        if(interaction.descentCurve){interaction.descentCurve.v3.copy(target);interactionGroup.position.copy(interaction.descentCurve.getPoint(q));}
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(0.36,1,q));
+        interaction.energy=0.34+0.48*q;setExplode(0);gratitudePaper.visible=false;
+        if(elapsed>=CONFIG.DESCEND_DURATION){interactionGroup.position.copy(target);cometTrail.visible=false;beginOpening();}
+      }else if(interaction.state==='OPENING'){
+        const hover=CONFIG.HOVER_DURATION,charge=0.36,burst=CONFIG.EXPLODE_DURATION;
+        if(elapsed<hover){interaction.energy=0.7+0.12*Math.sin(t*5);setExplode(interaction.openingFrom);}
+        else if(elapsed<hover+charge){
+          const q=(elapsed-hover)/charge;interaction.energy=0.78+0.36*q;
+          setExplode(interaction.openingFrom);
+        }else{
+          const q=easeOut((elapsed-hover-charge)/burst);
+          interaction.energy=CONFIG.PARTICLE_ENERGY;
+          setExplode(THREE.MathUtils.lerp(interaction.openingFrom,1,q));
         }
-      }else if(interaction.state==='COOLDOWN'&&elapsed>=CONFIG.interaction.cooldownSeconds)transition('IDLE');
-      if(interaction.state==='READING'){
-        const reveal=THREE.MathUtils.clamp((now-interaction.readingSince)/2400,0,1);
-        if(now-lastPaperDraw>100){drawGratitudePaper(reveal);lastPaperDraw=now;}
-        gratitudePaper.visible=true;gratitudePaper.material.opacity=THREE.MathUtils.damp(gratitudePaper.material.opacity,1,2.2,delta);
-        gratitudePaper.position.copy(interaction.center).add(new THREE.Vector3(0,0.1,0));
-        gratitudePaper.lookAt(camera.position);gratitudePaper.scale.setScalar(THREE.MathUtils.damp(gratitudePaper.scale.x,1,2.0,delta));
-      }else if(interaction.state==='UNFOLDING'){
-        gratitudePaper.position.copy(interaction.center).add(new THREE.Vector3(0,0.1,0));gratitudePaper.lookAt(camera.position);
-        gratitudePaper.material.opacity=THREE.MathUtils.damp(gratitudePaper.material.opacity,0.92,2,delta);
-        gratitudePaper.scale.setScalar(THREE.MathUtils.damp(gratitudePaper.scale.x,1,1.8,delta));
-        if(now-lastPaperDraw>100){drawGratitudePaper(elapsed/CONFIG.interaction.unfoldSeconds);lastPaperDraw=now;}
-      }else if(interaction.state==='COLLAPSING'){
-        const q=THREE.MathUtils.clamp(elapsed/CONFIG.interaction.collapseSeconds,0,1);
-        gratitudePaper.material.opacity=1-q;gratitudePaper.scale.setScalar(1-q*0.35);
-        if(now-lastPaperDraw>90){drawGratitudePaper(1-q);lastPaperDraw=now;}
+        fireCore.visible=elapsed<hover+charge+0.12;
+        if(fireCore.visible){fireCore.scale.setScalar(0.7+Math.sin(t*9)*0.34);fireCore.material.opacity=0.82;}
+        const follow=targetOverPalm(),diff=follow.sub(interactionGroup.position);
+        diff.multiplyScalar(1-Math.exp(-delta*CONFIG.HAND_FOLLOW_DAMPING));
+        const maxStep=delta*12;if(diff.length()>maxStep)diff.setLength(maxStep);
+        interactionGroup.position.add(diff);
+        if(elapsed>=hover+charge+burst){
+          setExplode(1);interaction.energy=0.72;interaction.readingSince=now;
+          enterState('READING');gratitudePaper.visible=true;gratitudePaper.material.opacity=0;
+          gratitudePaper.scale.setScalar(0.93);interaction.lastDraw=0;releaseButton.hidden=false;
+        }
+      }else if(interaction.state==='READING'){
+        const follow=targetOverPalm(),diff=follow.sub(interactionGroup.position);
+        diff.multiplyScalar(1-Math.exp(-delta*CONFIG.HAND_FOLLOW_DAMPING));
+        const maxStep=delta*11;if(diff.length()>maxStep)diff.setLength(maxStep);
+        interactionGroup.position.add(diff);
+        interaction.energy=0.7;
+        gratitudePaper.visible=true;gratitudePaper.quaternion.copy(camera.quaternion);
+        gratitudePaper.material.opacity=THREE.MathUtils.damp(gratitudePaper.material.opacity,1,2.2,delta);
+        gratitudePaper.scale.setScalar(THREE.MathUtils.damp(gratitudePaper.scale.x,1,2.1,delta));
+        const reveal=clamp01((now-interaction.readingSince)/1900);
+        if(now-interaction.lastDraw>110){drawGratitude(reveal);interaction.lastDraw=now;}
+        releaseButton.hidden=false;releaseButton.disabled=now-interaction.readingSince<5000;
+      }else if(interaction.state==='CLOSED'){
+        const q=easeOut(elapsed/CONFIG.COLLAPSE_DURATION);
+        setExplode(interaction.collapseFrom*(1-q));interaction.energy=0.78*(1-q)+0.18;
+        gratitudePaper.visible=true;gratitudePaper.material.opacity=1-q;
+        gratitudePaper.quaternion.copy(camera.quaternion);
+        if(now-interaction.lastDraw>80){drawGratitude(1-q);interaction.lastDraw=now;}
+        if(elapsed>=CONFIG.COLLAPSE_DURATION){setExplode(0);gratitudePaper.visible=false;if(!interaction.collapseFlashDone){interaction.collapseFlashDone=true;fireCore.visible=true;fireCore.material.opacity=0.9;interaction.flashUntil=now+180;}}
+      }else if(interaction.state==='RELEASING'){
+        const collapse=CONFIG.COLLAPSE_DURATION,moveDuration=Math.max(0.1,CONFIG.RELEASE_DURATION-collapse);
+        const q=clamp01((elapsed-collapse)/moveDuration);
+        setExplode(interaction.releaseExplode*(1-easeOut(elapsed/collapse)));
+        gratitudePaper.material.opacity=Math.max(0,1-elapsed/collapse);gratitudePaper.visible=gratitudePaper.material.opacity>0.01;
+        gratitudePaper.quaternion.copy(camera.quaternion);
+        if(interaction.releaseCurve){interactionGroup.position.copy(interaction.releaseCurve.getPoint(easeOut(q)));}
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(1,0.22,easeOut(q)));
+        interaction.energy=0.78*(1-q)+0.12;cometTrail.visible=true;
+        if(elapsed>=CONFIG.RELEASE_DURATION){
+          if(!interaction.releaseCalled){interaction.releaseCalled=true;window.onLanternReleased();}
+          setExplode(0);interactionGroup.position.set(0,14,-18);interactionGroup.scale.setScalar(0.34);
+          cometTrail.visible=false;gratitudePaper.visible=false;fireCore.visible=false;releaseButton.hidden=true;releaseButton.disabled=false;
+          enterState('IDLE');controls.autoRotate=true;
+        }
       }
-      triggerShockwaves(now);
-      summonCore.visible=interaction.state==='AWAKENING'&&elapsed<1.25;
-      if(summonCore.visible){summonCore.position.copy(palmSmoothedWorld);summonCore.scale.setScalar(0.72+Math.sin(t*7.5)*0.18);summonCore.material.opacity=0.82*(1-elapsed/1.25);}
-      for(const m of [mainLantern.material,bgMat,envMat,bokehMat,trailMat]){
-        m.uniforms.uEnergy.value=interaction.energy*CONFIG.interaction.energyStrength;
-        m.uniforms.uShockwave.value=THREE.MathUtils.clamp(1-(now-interaction.shockStarted)/950,0,1);
-        m.uniforms.uVortexSpeed.value=CONFIG.interaction.vortexSpeed;
-        m.uniforms.uExplode.value=interaction.explode;
-        m.uniforms.uVortex.value=interaction.state==='IDLE'?0:Math.min(1,interaction.energy);
-        m.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      if(interaction.state==='CLOSED'&&interaction.flashUntil){
+        fireCore.visible=now<interaction.flashUntil;
+        fireCore.material.opacity=Math.max(0,(interaction.flashUntil-now)/180)*0.9;
       }
-      mainLantern.material.uniforms.uLanternPos.value.copy(interaction.center);
-      cometTrail.material.uniforms.uLanternPos.value.copy(interaction.center);
-      cometTrail.material.uniforms.uEnergy.value=interaction.energy;
-      cometTrail.material.uniforms.uSize.value=1.0+interaction.lastHandSpeed*0.08;
-      cometTrail.material.uniforms.uTrailLength.value=CONFIG.interaction.trailLength*(1+interaction.lastHandSpeed*0.04);
-      const descentOrRelease=interaction.state==='DESCENDING'||interaction.state==='RELEASING';
-      cometTrail.visible=descentOrRelease;
-      if(descentOrRelease){
-        const shift=interaction.state==='RELEASING'?1.3:1;
-        cometTrail.material.uniforms.uTime.value=t*shift;
-        cometTrail.material.uniforms.uLanternPos.value.y+=0;
-      }
-      bloom.strength=THREE.MathUtils.damp(bloom.strength,interaction.state==='EXPLODING'?CONFIG.interaction.bloomPeak:CONFIG.bloomStrength,3.7,delta);
-      controls.autoRotate=['IDLE','COOLDOWN'].includes(interaction.state);
-      interaction.lastFrameAt=now;
-      lastFramePalm.copy(palmSmoothedWorld);
+      const surge=interaction.state==='OPENING'?Math.sin(Math.PI*clamp01((elapsed-CONFIG.HOVER_DURATION)/0.95)):0;
+      mainMat.uniforms.uEnergy.value=interaction.energy+surge*0.22;
+      mainMat.uniforms.uExplode.value=interaction.explode;
+      trailMaterial.uniforms.uTime.value=t;
+      trailMaterial.uniforms.uEnergy.value=interaction.energy;
+      cometTrail.visible=interaction.state==='DESCENDING'||interaction.state==='RELEASING';
+      const inBurst=interaction.state==='OPENING'&&elapsed>CONFIG.HOVER_DURATION+0.36&&elapsed<CONFIG.HOVER_DURATION+0.66;
+      const targetBloom=inBurst?CONFIG.BLOOM_PEAK_STRENGTH:CONFIG.bloomStrength;
+      bloom.strength=THREE.MathUtils.damp(bloom.strength,targetBloom,3.5,delta);
     }
 
     const clock = new THREE.Clock();
@@ -1184,9 +1099,8 @@
         handMarker.position.copy(palmSmoothedWorld);handHalo.position.copy(palmSmoothedWorld);
         handHalo.scale.setScalar(0.94+Math.sin(t*2.1)*0.08);
       }
-      updateSequence(now,delta,t);
+      updateInteraction(now,delta,t);
       for(const mat of [mainLantern.material,bgMat,envMat,bokehMat,trailMat])updateMaterial(mat,t);
-      for(const {material} of shockSystems)material.uniforms.uTime.value=t;
       mainLantern.rotation.y=Math.sin(t*0.19)*0.055;
       mainLantern.rotation.z=Math.sin(t*0.15)*0.018;
       for(const leaf of leaves){
@@ -1204,10 +1118,9 @@
     function resize() {
       const w = innerWidth, h = innerHeight;
       camera.aspect = w / h; camera.updateProjectionMatrix();
-      renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.maxPixelRatio) * CONFIG.qualityScale);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO) * CONFIG.qualityScale);
       renderer.setSize(w, h); composer.setSize(w, h);
       for (const mat of [mainLantern.material, bgMat, envMat, bokehMat, trailMat]) mat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
-      for(const {material} of shockSystems)material.uniforms.uPixelRatio.value=renderer.getPixelRatio();
     }
     addEventListener('resize', resize, { passive: true });
     addEventListener('visibilitychange', () => { if (!document.hidden) clock.getDelta(); });
