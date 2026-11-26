@@ -5,72 +5,92 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#050810" />
   <title>LANTERNS OF GRATITUDE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: dark; --gold: #f7c879; --muted: #c8bbac; }
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050810; }
-    body {
-      background:
-        radial-gradient(ellipse at 50% 42%, rgba(35, 30, 72, .58) 0%, rgba(14, 17, 43, .40) 32%, rgba(5, 8, 16, .12) 69%),
-        radial-gradient(ellipse at 50% 100%, #101024 0%, #080b18 43%, #050810 78%);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #fff8ec;
+    :root{color-scheme:dark;--gold:#f4d091;--ink:#302519;--paper:#f4ead7;--muted:#c9bdad}
+    *{box-sizing:border-box}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#050810}
+    body{font-family:"Space Mono",monospace;color:#fff5e6;background:radial-gradient(ellipse at 50% 44%,rgba(33,32,72,.56),rgba(6,9,21,.14) 55%,#050810 100%)}
+    #stage{position:fixed;inset:0}
+    canvas{display:block;width:100%;height:100%;outline:0;touch-action:none}
+    .vignette{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at center,transparent 48%,rgba(2,3,11,.16) 76%,rgba(1,2,8,.55) 120%)}
+    .title{position:fixed;z-index:3;top:clamp(24px,5vh,54px);left:50%;transform:translateX(-50%);width:min(92vw,760px);text-align:center;pointer-events:none;transition:opacity .9s ease}
+    .eyebrow{margin:0 0 9px;color:rgba(255,224,178,.78);font:10px/1.4 "Space Mono",monospace;letter-spacing:.35em}
+    h1{margin:0;font:400 clamp(29px,4vw,48px)/1.15 "Cormorant Garamond","Noto Serif SC",Georgia,serif;letter-spacing:.12em;color:#fff5df;text-shadow:0 0 28px rgba(255,190,112,.18)}
+    .subtitle{margin:8px 0 0;color:rgba(244,220,187,.72);font:italic 17px/1.3 "Cormorant Garamond",serif;letter-spacing:.08em}
+    .camera-toggle,.quiet-button,.text-action,.audio-button{border:0;background:none;color:rgba(255,239,213,.84);cursor:pointer;font:10px/1.4 "Space Mono",monospace;letter-spacing:.12em;text-transform:uppercase}
+    .camera-toggle{position:fixed;z-index:9;top:max(22px,env(safe-area-inset-top));right:max(24px,env(safe-area-inset-right));padding:10px 0 10px 12px;border-bottom:1px solid rgba(248,207,145,.5);transition:opacity .8s,color .2s}
+    .camera-toggle:hover,.text-action:hover,.quiet-button:hover{color:#fff3d4}
+    .camera-toggle:disabled{opacity:.5;cursor:wait}
+    .status-line{position:fixed;z-index:4;left:50%;bottom:max(31px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(88vw,640px);text-align:center;pointer-events:none;color:rgba(247,230,205,.72);font:10px/1.6 "Space Mono",monospace;letter-spacing:.1em;opacity:1;transition:opacity .45s ease}
+    .status-line.fade{opacity:0}
+    .no-camera{position:fixed;z-index:6;left:50%;bottom:max(72px,calc(env(safe-area-inset-bottom) + 62px));transform:translateX(-50%);white-space:nowrap;padding:7px 10px;color:rgba(244,220,187,.62);font:9px/1.5 "Space Mono",monospace;letter-spacing:.09em;border-bottom:1px solid rgba(244,206,144,.22);cursor:pointer;transition:opacity .6s}
+    .audio-controls{position:fixed;z-index:9;left:max(22px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:10px;opacity:.62;transition:opacity .8s}
+    .audio-controls:hover{opacity:1}
+    .audio-button{padding:4px 0;font-size:9px}
+    #volume{width:72px;height:2px;accent-color:#e4bd7c;cursor:pointer}
+    .debug-panel{position:fixed;z-index:10;top:20px;left:20px;width:min(260px,calc(100vw - 40px));padding:13px 15px;background:rgba(5,8,18,.62);color:rgba(246,231,211,.8);font:10px/1.65 "Space Mono",monospace}
+    .debug-heading,.debug-row{display:flex;justify-content:space-between;gap:12px}
+    .debug-heading{margin-bottom:6px;color:rgba(248,202,128,.84);font-size:9px;letter-spacing:.18em}
+    .debug-row{white-space:nowrap}.debug-row span:first-child{color:rgba(219,210,203,.54)}.debug-row span:last-child{text-align:right}
+    .debug-row .error{color:#ff927e!important}.debug-row .warn{color:#f3c774!important}
+    #cameraVideo{position:fixed;z-index:-1;left:-10000px;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+    #readingLayer{position:fixed;inset:0;z-index:8;display:grid;place-items:center;padding:4vh 5vw;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .85s ease,visibility .85s; background:radial-gradient(ellipse at center,rgba(255,205,135,.10),rgba(5,8,18,.05) 42%,transparent 72%)}
+    #readingLayer.is-visible{opacity:1;visibility:visible;pointer-events:auto}
+    .letter-paper{position:relative;width:min(var(--letter-max-width,600px),90vw);max-height:min(var(--letter-max-height,80dvh),850px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-color:rgba(138,99,55,.45) transparent;scrollbar-width:thin;padding:clamp(27px,5vw,58px) clamp(24px,6vw,70px);color:var(--ink);background:linear-gradient(135deg,#fff7e8 0%,#f5ead5 46%,#eee0c5 100%);box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 48px rgba(255,202,123,.12),inset 0 0 40px rgba(164,116,60,.08);border:1px solid rgba(255,230,183,.62);transform:perspective(1200px) rotateX(8deg) scale(.91,.84);clip-path:inset(0 50% 0 50%);transition:transform 1.5s cubic-bezier(.2,.75,.2,1),clip-path 1.5s cubic-bezier(.2,.75,.2,1),box-shadow 1.5s}
+    .letter-paper:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.28;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(137,99,51,.04) 4px,transparent 5px),repeating-linear-gradient(90deg,transparent 0 5px,rgba(255,255,255,.18) 6px,transparent 8px);mix-blend-mode:multiply}
+    .letter-paper:after{content:"";position:absolute;inset:13px;pointer-events:none;border:1px solid rgba(164,117,63,.25)}
+    #readingLayer.is-open .letter-paper{transform:perspective(1200px) rotateX(0) scale(1);clip-path:inset(0);box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 60px rgba(255,202,123,.19),inset 0 0 40px rgba(164,116,60,.08)}
+    .letter-content{position:relative;z-index:1;max-width:100%;font-family:"Cormorant Garamond","Noto Serif SC",Georgia,serif}
+    .letter-recipient{margin:0 0 16px;font-size:clamp(16px,2vw,19px);color:#806343}
+    .letter-title{margin:0 0 24px;font:500 clamp(27px,3.5vw,39px)/1.16 "Cormorant Garamond","Noto Serif SC",serif;color:#493722}
+    .letter-rule{width:44px;height:1px;margin:0 0 23px;background:#b99767}
+    .letter-body{font:400 clamp(15px,1.55vw,18px)/1.9 "Noto Serif SC","Songti SC",serif;color:#453727;white-space:pre-line}
+    .letter-body p{margin:0 0 15px}
+    .letter-signature{margin:22px 0 0;font:italic 21px/1.3 "Cormorant Garamond",serif;color:#755d3e}
+    .letter-date{margin:10px 0 0;font:11px/1.5 "Space Mono",monospace;letter-spacing:.05em;color:#88755c}
+    .letter-piece{opacity:0;transform:translateY(8px);transition:opacity .8s ease,transform .8s ease}
+    .letter-piece.revealed{opacity:1;transform:none}
+    .letter-actions{position:relative;z-index:1;display:flex;justify-content:center;gap:25px;padding-top:24px}
+    .text-action{font-size:9px;letter-spacing:.16em;color:#755d3e;text-transform:none;border-bottom:1px solid rgba(117,93,62,.35);padding:5px 0}
+    .text-action[hidden]{display:none}
+    #finaleLayer{position:fixed;inset:0;z-index:7;display:grid;place-items:center;text-align:center;pointer-events:none;opacity:0;visibility:hidden;transition:opacity 1.4s ease,visibility 1.4s;background:radial-gradient(ellipse at center,rgba(5,8,18,.18),transparent 62%)}
+    #finaleLayer.is-visible{opacity:1;visibility:visible}
+    .finale-copy{width:min(90vw,720px);color:#fff2d7;text-shadow:0 0 24px rgba(255,204,130,.16);font-family:"Cormorant Garamond",serif}
+    .finale-copy h2{margin:0 0 10px;font:400 clamp(36px,6vw,70px)/1.1 "Cormorant Garamond",serif;letter-spacing:.06em}
+    .finale-copy p{margin:8px 0;font-size:clamp(17px,2.4vw,25px);font-style:italic}
+    .finale-copy .recipient{margin-top:20px;font:10px/1.4 "Space Mono",monospace;letter-spacing:.18em;text-transform:uppercase}
+    #readAgain{pointer-events:none;margin-top:24px;opacity:0;transition:opacity 1s}
+    #finaleLayer.is-ready #readAgain{opacity:1;pointer-events:auto}
+    body.reading-mode .title,body.reading-mode .camera-toggle,body.reading-mode .audio-controls,body.reading-mode .status-line,body.reading-mode .no-camera{opacity:.13}
+    body.reading-mode .debug-panel{opacity:.15}
+    body.finale-mode .title,body.finale-mode .status-line,body.finale-mode .camera-toggle,body.finale-mode .audio-controls{opacity:.38}
+    @media(max-width:600px){
+      .eyebrow{font-size:8px;letter-spacing:.25em}h1{font-size:30px;letter-spacing:.07em}
+      .subtitle{font-size:15px}.letter-paper{width:90vw;max-height:80dvh;padding:30px 25px}
+      .letter-paper:after{inset:9px}.letter-body{font-size:16px;line-height:1.86}
+      .audio-controls{gap:7px}.status-line{font-size:9px;letter-spacing:.045em}
     }
-    #stage { position: fixed; inset: 0; }
-    canvas { display: block; width: 100%; height: 100%; outline: none; }
-    .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2; background: radial-gradient(ellipse at center, transparent 45%, rgba(2, 3, 11, .18) 75%, rgba(1, 2, 8, .58) 120%); }
-    .title {
-      position: fixed; z-index: 3; top: clamp(22px, 5.4vh, 56px); left: 50%; transform: translateX(-50%);
-      width: min(94vw, 720px); text-align: center; pointer-events: none;
-      text-shadow: 0 0 28px rgba(255, 182, 91, .18);
-    }
-    .eyebrow { margin: 0 0 12px; color: rgba(255, 224, 178, .74); font-size: 9px; letter-spacing: .48em; text-transform: uppercase; }
-    h1 { margin: 0; font-family: "Times New Roman", Georgia, serif; font-weight: 400; font-size: clamp(23px, 4vw, 42px); letter-spacing: .22em; line-height: 1.15; }
-    .subtitle { margin: 12px auto 0; color: rgba(234, 221, 209, .62); font-family: Georgia, serif; font-size: clamp(11px, 1.4vw, 14px); font-style: italic; letter-spacing: .1em; }
-    .footer { position: fixed; z-index: 3; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(92vw, 680px); text-align: center; pointer-events: none; }
-    .footer p { margin: 0; color: rgba(231, 219, 210, .60); font-size: 10px; letter-spacing: .24em; text-transform: uppercase; }
-    .footer .rule { height: 1px; width: 42px; margin: 0 auto 13px; background: linear-gradient(90deg, transparent, rgba(248, 197, 120, .62), transparent); }
-    .hint { position: fixed; z-index: 3; right: 23px; bottom: 23px; color: rgba(232, 219, 206, .36); font-size: 9px; letter-spacing: .14em; pointer-events: none; }
-    .camera-toggle {
-      position: fixed; z-index: 6; top: max(22px, env(safe-area-inset-top)); right: max(24px, env(safe-area-inset-right));
-      padding: 11px 15px; border: 1px solid rgba(248, 207, 145, .38); border-radius: 999px;
-      background: rgba(9, 11, 25, .42); color: rgba(255, 239, 213, .88); backdrop-filter: blur(12px);
-      font: 9px/1 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .18em; text-transform: uppercase;
-      cursor: pointer; transition: background .2s ease, border-color .2s ease, opacity .2s ease;
-    }
-    .camera-toggle:hover { background: rgba(38, 30, 44, .7); border-color: rgba(255, 222, 164, .72); }
-    .camera-toggle:disabled { cursor: wait; opacity: .58; }
-    .release-button { position: fixed; z-index: 6; right: max(24px, env(safe-area-inset-right)); bottom: max(30px, env(safe-area-inset-bottom)); padding: 12px 18px; border: 1px solid rgba(248,207,145,.48); border-radius: 999px; background: rgba(19,14,25,.62); color: #fff0d0; font: 10px/1 Inter, sans-serif; letter-spacing: .2em; text-transform: uppercase; backdrop-filter: blur(10px); cursor:pointer; }
-    .release-button:hover { background: rgba(82,48,31,.76); border-color: rgba(255,225,164,.82); }
-    .debug-panel {
-      position: fixed; z-index: 5; top: 20px; left: 20px; width: min(260px, calc(100vw - 40px));
-      padding: 13px 15px 14px; border: 1px solid rgba(245, 205, 141, .18); border-radius: 10px;
-      background: rgba(5, 8, 18, .52); backdrop-filter: blur(12px); color: rgba(246, 231, 211, .8);
-      font: 10px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .035em;
-    }
-    .debug-heading { display: flex; justify-content: space-between; margin-bottom: 6px; color: rgba(248, 202, 128, .84); font: 9px/1.4 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
-    .debug-row { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
-    .debug-row span:first-child { color: rgba(219, 210, 203, .54); }
-    .debug-row span:last-child { color: rgba(255, 244, 227, .92); text-align: right; }
-    .debug-row .error { color: #ff927e !important; }
-    .debug-row .warn { color: #f3c774 !important; }
-    #cameraVideo { position: fixed; z-index: -1; left: -10000px; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
-    @media (max-width: 600px) { .eyebrow { letter-spacing: .34em; } h1 { letter-spacing: .14em; } .hint { display: none; } }
-    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}}
   </style>
 </head>
 <body>
-  <div id="stage" aria-label="A field of glowing gratitude lanterns drifting through a night sky"></div>
-  <header class="title">
-    <p class="eyebrow">A gathering of light · Thanksgiving</p>
-    <h1>LANTERNS OF GRATITUDE</h1>
-    <p class="subtitle">For all that warms the heart, and all that carries us forward.</p>
+  <div id="stage" aria-label="LANTERNS OF GRATITUDE immersive particle artwork"></div>
+  <header class="title" id="siteTitle">
+    <p class="eyebrow">THANKSGIVING 2026</p>
+    <h1>感恩灯笼</h1>
+    <p class="subtitle">——From Nico</p>
   </header>
-  <div class="footer"><div class="rule"></div><p>May every grateful thought find its way home</p></div>
-  <div class="hint">DRAG TO EXPLORE</div>
+  <p class="status-line" id="statusLine">A little light is waiting for you.</p>
   <button id="cameraToggle" class="camera-toggle" type="button" aria-pressed="false">Enable Camera</button>
-  <button id="releaseButton" class="release-button" type="button" hidden>Release</button>
-  <aside id="debugPanel" class="debug-panel" aria-live="polite">
+  <button id="continueNoCamera" class="no-camera" type="button">Continue without Camera</button>
+  <div class="audio-controls" aria-label="Audio settings">
+    <button id="muteButton" class="audio-button" type="button" aria-label="Mute music">♪</button>
+    <input id="volume" type="range" min="0" max="1" value="0.42" step="0.01" aria-label="Volume">
+  </div>
+  <aside id="debugPanel" class="debug-panel" aria-live="polite" hidden>
     <div class="debug-heading"><span>Hand Tracking</span><span>LOCAL</span></div>
     <div class="debug-row"><span>Camera</span><span id="debugCamera">OFF</span></div>
     <div class="debug-row"><span>Video</span><span id="debugVideo">WAITING</span></div>
@@ -85,8 +105,32 @@
     <div class="debug-row"><span>Interaction</span><span id="debugInteraction">IDLE</span></div>
   </aside>
   <video id="cameraVideo" autoplay muted playsinline></video>
+  <audio id="bgm" src="assets/bgm.mp3" preload="none" loop></audio>
+  <section id="readingLayer" aria-label="A private letter of gratitude" aria-hidden="true">
+    <article class="letter-paper" id="letterPaper">
+      <div class="letter-content">
+        <p class="letter-recipient letter-piece" id="letterRecipient"></p>
+        <h2 class="letter-title letter-piece" id="letterTitle"></h2>
+        <div class="letter-rule letter-piece" id="letterRule"></div>
+        <div class="letter-body" id="letterBody"></div>
+        <p class="letter-signature letter-piece" id="letterSignature"></p>
+        <p class="letter-date letter-piece" id="letterDate"></p>
+      </div>
+      <div class="letter-actions">
+        <button id="closeLetter" class="text-action" type="button" hidden>Close</button>
+        <button id="releaseLantern" class="text-action" type="button" hidden>Release the lantern</button>
+      </div>
+    </article>
+  </section>
+  <section id="finaleLayer" aria-live="polite">
+    <div class="finale-copy">
+      <h2>Happy Thanksgiving.</h2>
+      <p>Thank you for being part of my world.</p>
+      <p class="recipient" id="finaleRecipient"></p>
+      <button id="readAgain" class="text-action" type="button">Read it again</button>
+    </div>
+  </section>
   <div class="vignette"></div>
-
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
   </script>
@@ -118,16 +162,24 @@
       bloomRadius: 0.72,
       bloomThreshold: 0.16,
       qualityScale: 1,
-      OPEN_HOLD_MS: 800, CLOSE_HOLD_MS: 500,
+      QUALITY: 'HIGH',
+      OPEN_HOLD_MS: 800, CLOSE_HOLD_MS: 600,
       DESCEND_DURATION: 2.65, HOVER_DURATION: 0.5, EXPLODE_DURATION: 0.78,
       COLLAPSE_DURATION: 0.5, RELEASE_DURATION: 2.8,
       SPHERE_RADIUS: 8.6, SPHERE_ROTATION_SPEED: 0.22, PARTICLE_ENERGY: 1.0,
       HAND_FOLLOW_DAMPING: 4.6, HAND_VERTICAL_OFFSET: 3.6,
       TRAIL_PARTICLE_COUNT: 1200, BLOOM_PEAK_STRENGTH: 1.28, MAX_PIXEL_RATIO: 1.65,
+      READING_CENTER_DURATION: 1.2, LETTER_OPEN_DURATION: 1.5, TEXT_REVEAL_DURATION: 4,
+      MIN_READING_DURATION: 5, LETTER_MAX_WIDTH: 600, LETTER_MAX_HEIGHT: '80dvh',
+      READING_MUSIC_VOLUME_FACTOR: 0.6, RETURN_TO_HAND_DURATION: 0.8, READING_BACKGROUND_BRIGHTNESS: 0.65,
+      ULTRA: { pixelRatio: 1.85, environmentParticles: 30000, backgroundLanterns: 90, trailParticles: 1800 },
+      HIGH: { pixelRatio: 1.65, environmentParticles: 24000, backgroundLanterns: 76, trailParticles: 1200 },
+      MEDIUM: { pixelRatio: 1.35, environmentParticles: 19000, backgroundLanterns: 62, trailParticles: 900 },
+      LOW: { pixelRatio: 1.0, environmentParticles: 14000, backgroundLanterns: 48, trailParticles: 500 },
       backgroundDepth: [24, 94],
       starFieldRadius: 92,
-      DEBUG: true,
-      handDetectionIntervalMs: 70,
+      DEBUG: false,
+      handDetectionIntervalMs: 75,
       gestureStabilityMs: 160,
       handLossGraceMs: 260,
       handLostEventMs: 1500,
@@ -141,6 +193,18 @@
       }
     };
 
+    const GRATITUDE_MESSAGE = {
+      recipient: 'To You',
+      title: 'A Little Light for You',
+      message: `谢谢你出现在我的生命里。\n\n这一年有很多值得感谢的事情，而与你相遇，是其中最特别的一件。\n\n感谢你带来的温暖、陪伴，以及那些看似平凡却值得珍藏的瞬间。\n\n愿未来的日子里，你依然拥有属于自己的光芒，也始终被这个世界温柔以待。\n\nHappy Thanksgiving.`,
+      signature: 'With gratitude',
+      date: 'November 26, 2026'
+    };
+    const QUALITY = CONFIG[CONFIG.QUALITY];
+    CONFIG.environmentParticles = QUALITY.environmentParticles;
+    CONFIG.backgroundLanterns = QUALITY.backgroundLanterns;
+    CONFIG.TRAIL_PARTICLE_COUNT = QUALITY.trailParticles;
+
     const stage = document.querySelector('#stage');
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x090b1c, 0.0042);
@@ -149,7 +213,7 @@
     camera.lookAt(0, 3.0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO) * CONFIG.qualityScale);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO, QUALITY.pixelRatio) * CONFIG.qualityScale);
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -184,6 +248,10 @@
       uniform float uExplode;
       uniform float uEnergy;
       uniform float uSphereRotationSpeed;
+      uniform float uHeartMorph;
+      uniform float uFinalePulse;
+      uniform float uFinaleTime;
+      uniform float uAmbientDim;
       uniform vec3 uHandPos;
       uniform vec3 uLanternPos;
       attribute float aRandom;
@@ -194,6 +262,8 @@
       attribute float aDelay;
       attribute vec3 aColor;
       attribute vec3 aSpherePos;
+      attribute vec3 aHeartPos;
+      attribute vec3 aCenter;
       varying vec3 vColor;
       varying float vAlpha;
       varying float vRandom;
@@ -205,6 +275,7 @@
         float phase = aPhase + aRandom*6.28318;
         float amount = clamp((uExplode-aDelay*0.075)/0.925,0.0,1.0);
         p = mix(p,aSpherePos,amount);
+        p = mix(p,aHeartPos,uHeartMorph);
         float angle = uTime*uSphereRotationSpeed*amount + phase*0.12*amount;
         float c=cos(angle), s=sin(angle);
         p.xz=mat2(c,-s,s,c)*p.xz;
@@ -216,14 +287,17 @@
         gl_Position=projectionMatrix*mvPosition;
         float perspective=82.0/max(1.0,-mvPosition.z);
         float pulse=0.86+0.14*sin(uTime*(1.2+aSpeed)+phase);
-        float energyGain=1.0+uEnergy*0.20+amount*0.16;
+        float relay=smoothstep(length(aCenter.xz)*0.017,length(aCenter.xz)*0.017+0.38,uFinaleTime);
+        float energyGain=1.0+uEnergy*0.20+amount*0.16+uFinalePulse*relay*0.24+max(0.0,sin(uTime*2.4-length(p)*0.72))*uHeartMorph*0.14;
         gl_PointSize=clamp(aSize*uSize*uPixelRatio*perspective*pulse*energyGain,0.65,22.0);
         float high=smoothstep(0.60,1.0,aLayer);
         vec3 warm=mix(vec3(0.62,0.16,0.075),vec3(1.0,0.73,0.38),clamp(uEnergy+high*0.25,0.0,1.0));
         vColor=mix(aColor,warm,clamp(uEnergy*0.32+amount*0.28,0.0,0.76));
+        vColor=mix(vColor,vec3(1.0,0.76,0.42),uFinalePulse*relay*0.58);
         if(aRandom>0.986)vColor=mix(vColor,vec3(1.0,0.97,0.85),0.65);
         float shimmer=0.78+0.22*sin(uTime*1.9+phase);
-        vAlpha=(0.58+0.27*high+0.16*uEnergy)*shimmer*(0.92+amount*0.18);
+        float heartWave=max(0.0,sin(uTime*2.4-length(p)*0.72))*uHeartMorph;
+        vAlpha=(0.58+0.27*high+0.16*uEnergy+heartWave*0.18)*shimmer*(0.92+amount*0.18+uFinalePulse*relay*0.3)*(1.0-uAmbientDim);
         vRandom=aRandom;vLayer=aLayer;vHeight=p.y;vEnergy=uEnergy;
       }
     `;
@@ -253,7 +327,7 @@
     const particleMaterial = (size, opacity = 1) => new THREE.ShaderMaterial({
       uniforms: {
         uTime:{value:0},uPixelRatio:{value:renderer.getPixelRatio()},uSize:{value:size},
-        uExplode:{value:0},uEnergy:{value:0.12},uSphereRotationSpeed:{value:CONFIG.SPHERE_ROTATION_SPEED},uHandPos:{value:new THREE.Vector3()},uLanternPos:{value:new THREE.Vector3()}
+        uExplode:{value:0},uEnergy:{value:0.12},uSphereRotationSpeed:{value:CONFIG.SPHERE_ROTATION_SPEED},uHeartMorph:{value:0},uFinalePulse:{value:0},uFinaleTime:{value:0},uAmbientDim:{value:0},uHandPos:{value:new THREE.Vector3()},uLanternPos:{value:new THREE.Vector3()}
       },
       vertexShader, fragmentShader, transparent: true, depthWrite: false,
       blending: THREE.AdditiveBlending, opacity, toneMapped: true
@@ -344,6 +418,7 @@
       cameraToggle.disabled = state === 'LOADING';
       debugEls.camera.textContent = error ? `${state}: ${error}` : state;
       debugEls.camera.classList.toggle('error', state === 'ERROR');
+      if (typeof updateStatus === 'function') updateStatus(promptForState());
       updateDebug();
     }
     function setInteractionState(state) {
@@ -355,22 +430,22 @@
       const now = performance.now();
       if (now - lastDebugUpdateAt < 90) return;
       lastDebugUpdateAt = now;
-      debugEls.camera.textContent = cameraError ? `${cameraState} · ${cameraError}` : cameraState;
+      debugEls.camera.textContent = cameraError ? `${cameraState}  ${cameraError}` : cameraState;
       debugEls.camera.classList.toggle('error', cameraState === 'ERROR');
       debugEls.hands.textContent = String(handCount);
-      debugEls.fingers.textContent = `E${fingerMetrics.extended}/4 · B${fingerMetrics.curled}/4`;
+      debugEls.fingers.textContent = `E${fingerMetrics.extended}/4  B${fingerMetrics.curled}/4`;
       debugEls.reach.textContent = `${fingerMetrics.indexYDistance.toFixed(3)} / ${fingerMetrics.averageReach.toFixed(2)}`;
       const videoReady = cameraVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && cameraVideo.videoWidth > 0;
       debugEls.video.textContent = videoReady
-        ? `${cameraVideo.paused ? 'PAUSED' : 'LIVE'} ${cameraVideo.videoWidth}×${cameraVideo.videoHeight}`
+        ? `${cameraVideo.paused ? 'PAUSED' : 'LIVE'} ${cameraVideo.videoWidth}�${cameraVideo.videoHeight}`
         : `WAIT ${cameraVideo.readyState}/4`;
       debugEls.video.classList.toggle('warn', cameraState === 'ON' && !videoReady);
-      debugEls.inference.textContent = inferenceFrames ? `${inferenceFrames} · ${lastInferenceAt ? ((performance.now() - lastInferenceAt) / 1000).toFixed(1) + 's ago' : ''}` : '0 · waiting';
+      debugEls.inference.textContent = inferenceFrames ? `${inferenceFrames}  ${lastInferenceAt ? ((performance.now() - lastInferenceAt) / 1000).toFixed(1) + 's ago' : ''}` : '0  waiting';
       debugEls.inference.classList.toggle('warn', cameraState === 'ON' && (!inferenceFrames || performance.now() - lastInferenceAt > 1500));
       debugEls.gesture.textContent = displayedGesture;
-      debugEls.palm.textContent = hasPalmTarget ? `${palmSmoothedWorld.x.toFixed(2)}, ${palmSmoothedWorld.y.toFixed(2)}, ${palmSmoothedWorld.z.toFixed(2)}` : '—';
+      debugEls.palm.textContent = hasPalmTarget ? `${palmSmoothedWorld.x.toFixed(2)}, ${palmSmoothedWorld.y.toFixed(2)}, ${palmSmoothedWorld.z.toFixed(2)}` : '-';
       debugEls.hold.textContent = `${(holdDurationMs / 1000).toFixed(1)} s`;
-      debugEls.fps.textContent = currentFps ? String(currentFps) : '—';
+      debugEls.fps.textContent = currentFps ? String(currentFps) : '-';
       debugEls.interaction.textContent = interactionState;
     }
 
@@ -496,6 +571,7 @@
       const hands = result.landmarks || [];
       handCount = hands.length;
       if (!hands.length) {
+        readingPalmHistory=[];readingLiftGateOpen=false;
         displayedGesture = 'NO HAND';
         fingerMetrics = { extended: 0, curled: 0, indexYDistance: 0, averageReach: 0 };
         candidateGesture = 'NO HAND'; candidateGestureAt = now;
@@ -663,6 +739,7 @@
     }
 
     cameraToggle.addEventListener('click', () => {
+      unlockAudio();
       if (cameraState === 'ON') stopCamera('OFF');
       else enableCamera();
     });
@@ -741,7 +818,13 @@
       sizes[i] = role === 'flame' ? 1.15 + rand() * 2.15 : role === 'rim' ? 0.72 + rand() * 1.15 : 0.48 + rand() * 1.03;
     }
     // One precomputed volumetric target: dense core, body volume, and sparse outer halo.
-    const spherePos=new Float32Array(pos.length), delays=new Float32Array(CONFIG.mainLanternParticles);
+    function randomHeartTarget(){
+      const a=rand()*Math.PI*2, fill=0.58+Math.sqrt(rand())*0.42;
+      const x=16*Math.pow(Math.sin(a),3)*0.38*fill;
+      const y=(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a))*0.36*fill;
+      return [x,y,(rand()-0.5)*4.2*fill];
+    }
+    const spherePos=new Float32Array(pos.length), heartPos=new Float32Array(pos.length), delays=new Float32Array(CONFIG.mainLanternParticles);
     for(let i=0;i<CONFIG.mainLanternParticles;i++){
       const k=i*3,band=rand(),z=rand()*2-1,angle=rand()*Math.PI*2,xy=Math.sqrt(1-z*z);
       const directionX=Math.cos(angle)*xy,directionY=z,directionZ=Math.sin(angle)*xy;
@@ -753,6 +836,7 @@
       spherePos[k]=directionX*radius+noise;
       spherePos[k+1]=directionY*radius+(rand()-0.5)*0.34;
       spherePos[k+2]=directionZ*radius+noise;
+      const heart=randomHeartTarget();heartPos[k]=heart[0];heartPos[k+1]=heart[1];heartPos[k+2]=heart[2];
       delays[i]=rand();
     }
     const mainGeo = new THREE.BufferGeometry();
@@ -765,6 +849,7 @@
     mainGeo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
     mainGeo.setAttribute('aDelay',new THREE.BufferAttribute(delays,1));
     mainGeo.setAttribute('aSpherePos',new THREE.BufferAttribute(spherePos,3));
+    mainGeo.setAttribute('aHeartPos',new THREE.BufferAttribute(heartPos,3));
     const interactionGroup=new THREE.Group();
     interactionGroup.position.set(0,14,-18);
     interactionGroup.scale.setScalar(0.34);
@@ -774,7 +859,7 @@
     interactionGroup.add(mainLantern);
 
     // Build many lanterns into one draw call; per-particle anchors keep each lantern independently drifting.
-    const bgCount = CONFIG.backgroundLanterns;
+    const bgCount = QUALITY.backgroundLanterns;
     const bgPositions = [], bgColors = [], bgSizes = [], bgRandoms = [], bgPhases = [], bgLayers = [], bgSpeeds = [], bgCenters = [], bgScales = [], bgYaw = [], bgLift = [];
     for (let b = 0; b < bgCount; b++) {
       const depth = THREE.MathUtils.lerp(CONFIG.backgroundDepth[0], CONFIG.backgroundDepth[1], rand());
@@ -808,8 +893,8 @@
     bgGeo.setAttribute('aYaw', new THREE.Float32BufferAttribute(bgYaw, 1));
     bgGeo.setAttribute('aLift', new THREE.Float32BufferAttribute(bgLift, 1));
     const bgMat = particleMaterial(1.0);
-    bgMat.vertexShader = bgMat.vertexShader.replace('attribute vec3 aColor;', 'attribute vec3 aColor;\nattribute vec3 aCenter;\nattribute float aScale;\nattribute float aYaw;\nattribute float aLift;')
-      .replace('vec3 p = mix(position, aLanternPos, step(0.5,id));', `
+    bgMat.vertexShader = bgMat.vertexShader.replace('attribute vec3 aColor;', 'attribute vec3 aColor;\nattribute float aScale;\nattribute float aYaw;\nattribute float aLift;')
+      .replace('vec3 p = position;', `
         vec3 local = position * aScale;
         float c = cos(aYaw), s = sin(aYaw);
         vec3 p = vec3(local.x * c - local.z * s, local.y, local.x * s + local.z * c) + aCenter;
@@ -821,7 +906,7 @@
     scene.add(bgLanterns);
 
     // Ambient star ocean: slow helical drift and delicate depth attenuation, all animated in the GPU shader.
-    const envN = CONFIG.environmentParticles;
+    const envN = QUALITY.environmentParticles;
     const envPos = new Float32Array(envN * 3), envColor = new Float32Array(envN * 3), envSize = new Float32Array(envN), envRand = new Float32Array(envN), envPhase = new Float32Array(envN), envLayer = new Float32Array(envN), envSpeed = new Float32Array(envN);
     for (let i = 0; i < envN; i++) {
       const k = i * 3;
@@ -837,6 +922,8 @@
       envSize[i] = 0.25 + Math.pow(rand(), 5) * 2.7;
       envRand[i] = rand(); envPhase[i] = angle; envLayer[i] = warm ? 0.55 : 0.12; envSpeed[i] = 0.1 + rand() * 0.8;
     }
+    const envHeartPos=new Float32Array(envN*3);
+    for(let i=0;i<envN;i++){const k=i*3,hp=randomHeartTarget();envHeartPos[k]=hp[0];envHeartPos[k+1]=hp[1];envHeartPos[k+2]=hp[2];}
     const envGeo = new THREE.BufferGeometry();
     envGeo.setAttribute('position', new THREE.BufferAttribute(envPos, 3));
     envGeo.setAttribute('aColor', new THREE.BufferAttribute(envColor, 3));
@@ -845,10 +932,11 @@
     envGeo.setAttribute('aPhase', new THREE.BufferAttribute(envPhase, 1));
     envGeo.setAttribute('aLayer', new THREE.BufferAttribute(envLayer, 1));
     envGeo.setAttribute('aSpeed', new THREE.BufferAttribute(envSpeed, 1));
+    envGeo.setAttribute('aHeartPos',new THREE.BufferAttribute(envHeartPos,3));
     const envMat = particleMaterial(CONFIG.environmentParticleSize * 1.25);
-    envMat.vertexShader = envMat.vertexShader.replace('vec3 p = mix(position, aLanternPos, step(0.5,id));', `
+    envMat.vertexShader = envMat.vertexShader.replace('vec3 p = position;', `
       vec3 p = position;
-      float theta = uTime * (0.012 + aSpeed * 0.006) + aPhase;
+      float theta = uTime * (0.012 + aSpeed * 0.006) * (1.0+uFinalePulse*1.4) + aPhase;
       float orbit = 0.06 + aRandom * 0.11;
       p.x += cos(theta) * orbit;
       p.z += sin(theta) * orbit;
@@ -892,8 +980,8 @@
       leafGroup.add(mesh); leaves.push(mesh);
     }
 
-    // A pooled, lightweight comet tail follows the single interaction group.
-    const trailN=CONFIG.TRAIL_PARTICLE_COUNT;
+    // Preallocated pools are shared across every repeat; only uniforms and parent transforms animate.
+    const trailN=QUALITY.trailParticles;
     const trailP=new Float32Array(trailN*3),trailC=new Float32Array(trailN*3),trailS=new Float32Array(trailN),trailR=new Float32Array(trailN),trailPh=new Float32Array(trailN);
     for(let i=0;i<trailN;i++){
       const k=i*3;trailP[k]=(rand()-0.5)*1.8;trailP[k+1]=-rand();trailP[k+2]=(rand()-0.5)*1.4;
@@ -901,193 +989,379 @@
       trailS[i]=0.45+Math.pow(rand(),4)*2.5;trailR[i]=rand();trailPh[i]=rand()*6.283;
     }
     const trailGeo=new THREE.BufferGeometry();
-    trailGeo.setAttribute('position',new THREE.BufferAttribute(trailP,3));
-    trailGeo.setAttribute('aColor',new THREE.BufferAttribute(trailC,3));
-    trailGeo.setAttribute('aSize',new THREE.BufferAttribute(trailS,1));
-    trailGeo.setAttribute('aRandom',new THREE.BufferAttribute(trailR,1));
-    trailGeo.setAttribute('aPhase',new THREE.BufferAttribute(trailPh,1));
-    trailGeo.setAttribute('aLayer',new THREE.BufferAttribute(trailR,1));
-    trailGeo.setAttribute('aSpeed',new THREE.BufferAttribute(trailR,1));
+    trailGeo.setAttribute('position',new THREE.BufferAttribute(trailP,3));trailGeo.setAttribute('aColor',new THREE.BufferAttribute(trailC,3));
+    trailGeo.setAttribute('aSize',new THREE.BufferAttribute(trailS,1));trailGeo.setAttribute('aRandom',new THREE.BufferAttribute(trailR,1));
+    trailGeo.setAttribute('aPhase',new THREE.BufferAttribute(trailPh,1));trailGeo.setAttribute('aLayer',new THREE.BufferAttribute(trailR,1));trailGeo.setAttribute('aSpeed',new THREE.BufferAttribute(trailR,1));
     const trailMat=particleMaterial(1.0);
     trailMat.vertexShader=trailMat.vertexShader.replace('vec3 p = position;',`
-      vec3 p=position;
-      float tail=aRandom*6.2;
+      vec3 p=position;float tail=aRandom*6.2;
       p.x*=0.25+tail*0.22;p.z*=0.25+tail*0.16;
-      p.x+=sin(uTime+tail+aPhase)*tail*0.11;
-      p.z+=cos(uTime*0.8+tail+aPhase)*tail*0.08;
-      p.y-=tail;
+      p.x+=sin(uTime+tail+aPhase)*tail*0.11;p.z+=cos(uTime*0.8+tail+aPhase)*tail*0.08;p.y-=tail;
     `);
-    const cometTrail=new THREE.Points(trailGeo,trailMat);
-    cometTrail.frustumCulled=false;cometTrail.visible=false;interactionGroup.add(cometTrail);
+    const cometTrail=new THREE.Points(trailGeo,trailMat);cometTrail.frustumCulled=false;cometTrail.visible=false;interactionGroup.add(cometTrail);
 
-    // One curved CanvasTexture plane keeps the bilingual message crisp and inexpensive.
-    const paperCanvas=document.createElement('canvas');paperCanvas.width=1024;paperCanvas.height=640;
-    const paperCtx=paperCanvas.getContext('2d');
-    const paperTexture=new THREE.CanvasTexture(paperCanvas);paperTexture.colorSpace=THREE.SRGBColorSpace;
-    const paperMaterial=new THREE.MeshBasicMaterial({map:paperTexture,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,depthTest:false,toneMapped:false});
-    const paperGeometry=new THREE.PlaneGeometry(7.4,4.6,24,16);
-    const paperAttr=paperGeometry.attributes.position;
-    for(let i=0;i<paperAttr.count;i++){const x=paperAttr.getX(i),y=paperAttr.getY(i);paperAttr.setZ(i,0.075*Math.sin(x*0.68)*Math.cos(y*0.52));}
-    paperGeometry.computeVertexNormals();
-    const gratitudePaper=new THREE.Mesh(paperGeometry,paperMaterial);
-    gratitudePaper.position.set(0,0.05,4.5);gratitudePaper.renderOrder=10;gratitudePaper.visible=false;
-    interactionGroup.add(gratitudePaper);
-    function drawGratitude(reveal){
-      const ctx=paperCtx,w=paperCanvas.width,h=paperCanvas.height;
-      ctx.clearRect(0,0,w,h);
-      const paper=ctx.createLinearGradient(0,0,w,h);paper.addColorStop(0,'rgba(255,248,231,.94)');paper.addColorStop(.55,'rgba(249,238,215,.93)');paper.addColorStop(1,'rgba(234,216,184,.92)');
-      ctx.fillStyle=paper;ctx.fillRect(0,0,w,h);
-      for(let i=0;i<1700;i++){const x=(i*173)%w,y=(i*317)%h;ctx.fillStyle='rgba(113,79,39,.035)';ctx.fillRect(x,y,1+(i%2),1);}
-      ctx.strokeStyle='rgba(165,112,58,.42)';ctx.lineWidth=2;ctx.strokeRect(30,30,w-60,h-60);
-      ctx.textAlign='center';ctx.fillStyle='#a67643';ctx.font='small-caps 21px Georgia,serif';ctx.fillText('A NOTE OF GRATITUDE',w/2,136);
-      const lines=[
-        {text:'感谢这一年里，',y:278,font:'40px "Noto Serif SC","Songti SC",serif'},
-        {text:'那些曾经给予我温暖、陪伴和善意的人。',y:342,font:'34px "Noto Serif SC","Songti SC",serif'},
-        {text:'Thank you for being part of my world.',y:462,font:'italic 31px Georgia,serif'}
-      ];
-      lines.forEach((line,i)=>{ctx.globalAlpha=THREE.MathUtils.clamp((reveal-i*0.22)/0.42,0,1);ctx.font=line.font;ctx.fillStyle=i<2?'#54402d':'#765a3b';ctx.fillText(line.text,w/2,line.y);});
-      ctx.globalAlpha=1;ctx.fillStyle='rgba(165,112,58,.72)';ctx.font='18px Georgia,serif';ctx.fillText('✦   ✦   ✦',w/2,546);
-      paperTexture.needsUpdate=true;
+    // A single object-pooled firework burst supplies the finale without per-frame particle simulation.
+    const fireworkN=3600, fwPos=new Float32Array(fireworkN*3),fwDelay=new Float32Array(fireworkN),fwSize=new Float32Array(fireworkN),fwDistance=new Float32Array(fireworkN);
+    for(let i=0;i<fireworkN;i++){
+      const k=i*3,z=rand()*2-1,a=rand()*Math.PI*2,r=Math.sqrt(1-z*z);
+      fwPos[k]=Math.cos(a)*r;fwPos[k+1]=z;fwPos[k+2]=Math.sin(a)*r;
+      fwDelay[i]=rand();fwSize[i]=0.6+Math.pow(rand(),4)*3.2;fwDistance[i]=3+rand()*12;
     }
-    drawGratitude(0);
+    const fireworkGeo=new THREE.BufferGeometry();
+    fireworkGeo.setAttribute('position',new THREE.BufferAttribute(fwPos,3));fireworkGeo.setAttribute('aDelay',new THREE.BufferAttribute(fwDelay,1));
+    fireworkGeo.setAttribute('aSize',new THREE.BufferAttribute(fwSize,1));fireworkGeo.setAttribute('aDistance',new THREE.BufferAttribute(fwDistance,1));
+    const fireworkMaterial=new THREE.ShaderMaterial({
+      uniforms:{uTime:{value:0},uPixelRatio:{value:renderer.getPixelRatio()},uProgress:{value:0},uEnergy:{value:1}},
+      vertexShader:`
+        uniform float uTime;uniform float uPixelRatio;uniform float uProgress;uniform float uEnergy;
+        attribute float aDelay;attribute float aSize;attribute float aDistance;varying float vAlpha;varying float vSpark;
+        void main(){float life=clamp((uProgress-aDelay*0.3)/0.7,0.0,1.0);vec3 p=position*aDistance*life;p.y-=life*life*1.4;
+          vec4 mv=modelViewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;
+          gl_PointSize=clamp(aSize*uPixelRatio*(78.0/max(1.0,-mv.z))*(0.7+uEnergy*0.35),0.7,18.0);
+          vAlpha=(1.0-smoothstep(0.38,1.0,life))*(0.45+0.55*sin(life*3.14159));vSpark=aDelay;}
+      `,
+      fragmentShader:`
+        varying float vAlpha;varying float vSpark;
+        void main(){float r=length(gl_PointCoord-0.5)*2.0;float a=exp(-r*r*15.0)*smoothstep(1.0,0.12,r)*vAlpha;if(a<0.01)discard;
+          gl_FragColor=vec4(mix(vec3(1.0,0.42,0.16),vec3(1.0,0.91,0.64),vSpark),a);}
+      `,
+      transparent:true,depthWrite:false,blending:THREE.AdditiveBlending
+    });
+    const fireworks=new THREE.Points(fireworkGeo,fireworkMaterial);fireworks.frustumCulled=false;fireworks.visible=false;scene.add(fireworks);
 
-    const fireCore=new THREE.Mesh(new THREE.SphereGeometry(0.28,18,14),new THREE.MeshBasicMaterial({color:0xffe3a1,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
-    fireCore.position.set(0,-3.25,0);fireCore.visible=false;interactionGroup.add(fireCore);
-    const releaseButton=document.querySelector('#releaseButton');
-    const interaction={state:'IDLE',enteredAt:performance.now(),readingSince:0,explode:0,energy:0.14,descentCurve:null,releaseCurve:null,releaseStart:new THREE.Vector3(),releaseCalled:false,lastDraw:0};
-    const stateElapsed=now=>(now-interaction.enteredAt)/1000;
-    const clamp01=x=>THREE.MathUtils.clamp(x,0,1);
-    const easeOut=x=>1-Math.pow(1-clamp01(x),3);
-    function enterState(state){interaction.state=state;interaction.enteredAt=performance.now();setInteractionState(state);}
-    function setExplode(value){
-      interaction.explode=clamp01(value);
-      mainLantern.material.uniforms.uExplode.value=interaction.explode;
+    const readingLayer=document.querySelector('#readingLayer'),letterPaper=document.querySelector('#letterPaper');
+    const recipientEl=document.querySelector('#letterRecipient'),titleEl=document.querySelector('#letterTitle');
+    const bodyEl=document.querySelector('#letterBody'),signatureEl=document.querySelector('#letterSignature'),dateEl=document.querySelector('#letterDate');
+    const closeLetterButton=document.querySelector('#closeLetter'),releaseLanternButton=document.querySelector('#releaseLantern');
+    const openLanternButton=document.querySelector('#openLantern'),continueNoCameraButton=document.querySelector('#continueNoCamera');
+    const statusLine=document.querySelector('#statusLine'),finaleLayer=document.querySelector('#finaleLayer');
+    const readAgainButton=document.querySelector('#readAgain'),finaleRecipient=document.querySelector('#finaleRecipient');
+    const letterPieces=[];
+    recipientEl.textContent=GRATITUDE_MESSAGE.recipient||'';recipientEl.hidden=!GRATITUDE_MESSAGE.recipient;
+    titleEl.textContent=GRATITUDE_MESSAGE.title||'';
+    signatureEl.textContent=GRATITUDE_MESSAGE.signature||'';signatureEl.hidden=!GRATITUDE_MESSAGE.signature;
+    dateEl.textContent=GRATITUDE_MESSAGE.date||'';dateEl.hidden=!GRATITUDE_MESSAGE.date;
+    finaleRecipient.textContent=GRATITUDE_MESSAGE.recipient?GRATITUDE_MESSAGE.recipient.toUpperCase():'';
+    const paragraphs=GRATITUDE_MESSAGE.message.split(/\n\s*\n/);
+    for(const paragraph of paragraphs){const p=document.createElement('p');p.className='letter-piece';p.textContent=paragraph;bodyEl.appendChild(p);}
+    if(GRATITUDE_MESSAGE.recipient)letterPieces.push(recipientEl);
+    letterPieces.push(titleEl,document.querySelector('#letterRule'),...bodyEl.querySelectorAll('p'));
+    if(GRATITUDE_MESSAGE.signature)letterPieces.push(signatureEl);
+    if(GRATITUDE_MESSAGE.date)letterPieces.push(dateEl);
+    document.documentElement.style.setProperty('--letter-max-width',CONFIG.LETTER_MAX_WIDTH+'px');
+    document.documentElement.style.setProperty('--letter-max-height',CONFIG.LETTER_MAX_HEIGHT);
+    let noCameraMode=false, audioUnlocked=false;
+    const bgm=document.querySelector('#bgm'),volumeSlider=document.querySelector('#volume'),muteButton=document.querySelector('#muteButton');
+    let masterVolume=Number(volumeSlider.value),musicMix=1,isMuted=false,audioContext=null,musicGain=null,sfxGain=null,synthOscillators=[],synthStarted=false;
+    function initAudio(){
+      if(audioContext)return audioContext;
+      const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return null;
+      audioContext=new AudioCtx();musicGain=audioContext.createGain();sfxGain=audioContext.createGain();
+      musicGain.gain.value=0;sfxGain.gain.value=0.12*masterVolume;
+      musicGain.connect(audioContext.destination);sfxGain.connect(audioContext.destination);return audioContext;
     }
-    function targetOverPalm(){return palmSmoothedWorld.clone().add(new THREE.Vector3(0,CONFIG.HAND_VERTICAL_OFFSET,0));}
+    function startSynthMusic(){
+      const ctx=initAudio();if(!ctx||synthStarted)return;synthStarted=true;
+      const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=820;filter.Q.value=0.35;filter.connect(musicGain);
+      const pad=[110,164.81,220,329.63];
+      pad.forEach((hz,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type=i===3?'triangle':'sine';osc.frequency.value=hz;gain.gain.value=i===3?0.16:0.24;osc.connect(gain);gain.connect(filter);osc.start();synthOscillators.push(osc);});
+      musicGain.gain.setTargetAtTime(0.05*masterVolume*musicMix,ctx.currentTime,1.1);
+    }
+    let lastAudioParamUpdate=0;
+    function syncAudioMix(delta=0.04){
+      const target=interaction.state==='READING'?CONFIG.READING_MUSIC_VOLUME_FACTOR:interaction.state==='FINALE'?CONFIG.FINALE_MUSIC_VOLUME_FACTOR:1;
+      musicMix=THREE.MathUtils.damp(musicMix,target,1.1,delta);
+      if(!isMuted)bgm.volume=Math.min(masterVolume*musicMix,masterVolume);
+      if(audioContext&&performance.now()-lastAudioParamUpdate>100){lastAudioParamUpdate=performance.now();
+        if(musicGain)musicGain.gain.setTargetAtTime((synthStarted?0.05*masterVolume*Math.min(musicMix,1):0),audioContext.currentTime,0.1);
+        if(sfxGain)sfxGain.gain.setTargetAtTime(isMuted?0:0.12*masterVolume,audioContext.currentTime,0.05);
+      }
+    }
+    async function unlockAudio(){
+      const ctx=initAudio();if(ctx)await ctx.resume();audioUnlocked=true;
+      try{bgm.volume=Math.min(masterVolume*musicMix,masterVolume);await bgm.play();if(musicGain&&ctx)musicGain.gain.setTargetAtTime(0,ctx.currentTime,0.45);}
+      catch(_){startSynthMusic();}
+    }
+    bgm.addEventListener('error',startSynthMusic);
+    volumeSlider.addEventListener('input',()=>{masterVolume=Number(volumeSlider.value);if(!masterVolume){isMuted=true;muteButton.textContent='×';}else{isMuted=false;muteButton.textContent='♪';}syncAudioMix();});
+    muteButton.addEventListener('click',()=>{isMuted=!isMuted;muteButton.textContent=isMuted?'×':'♪';if(isMuted)bgm.volume=0;else{bgm.volume=masterVolume*musicMix;unlockAudio();}syncAudioMix();});
+    function playSfx(kind){
+      const ctx=initAudio();if(!ctx)return;const now=ctx.currentTime;
+      const presets={summon:[164,247,0.9],descent:[720,1080,0.52],burst:[92,510,0.75],letter:[520,784,0.72],collapse:[660,260,0.55],release:[220,880,1.1],finale:[261.6,329.6,1.8],reset:[392,196,0.7]};
+      const [from,to,duration]=presets[kind]||presets.letter;
+      const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type=kind==='burst'?'sine':'sine';
+      osc.frequency.setValueAtTime(from,now);osc.frequency.exponentialRampToValueAtTime(Math.max(40,to),now+duration);
+      gain.gain.setValueAtTime(0.0001,now);gain.gain.exponentialRampToValueAtTime((isMuted?0:0.10*masterVolume),now+0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+      osc.connect(gain);gain.connect(sfxGain||ctx.destination);osc.start(now);osc.stop(now+duration+0.04);
+      if(kind==='finale'){for(const hz of [392,523.25,659.25]){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=hz;g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(isMuted?0:0.065*masterVolume,now+0.16);g.gain.exponentialRampToValueAtTime(0.0001,now+2.1);o.connect(g);g.connect(sfxGain||ctx.destination);o.start(now);o.stop(now+2.2);}}
+    }
+    function stopSynthMusic(){if(!audioContext||!synthStarted)return;musicGain.gain.setTargetAtTime(0,audioContext.currentTime,0.5);synthStarted=false;}
+
+    const followTarget=new THREE.Vector3(),followDelta=new THREE.Vector3(),viewDirection=new THREE.Vector3(),centerTarget=new THREE.Vector3(),screenCenter=new THREE.Vector3();
+    const initialCameraPosition=new THREE.Vector3(0,5,29),initialCameraTarget=new THREE.Vector3(0,3,0);
+    const interaction={state:'IDLE',enteredAt:performance.now(),readingSince:0,readingReadyAt:0,explode:0,energy:0.14,
+      handFollowWeight:1,positionMode:'HAND_TRACKING',descentCurve:null,centerCurve:null,releaseCurve:null,finaleCurve:null,resetCurve:null,
+      centerStart:new THREE.Vector3(),releaseStart:new THREE.Vector3(),releaseCalled:false,readingShownAt:0,revealIndex:0,finaleStart:0,finaleShown:false,finaleFrom:new THREE.Vector3(),finaleCenter:new THREE.Vector3(),finalCurve:null,
+      collapseFrom:0,releaseExplode:0,resetStart:0,releaseEnd:new THREE.Vector3()};
+    const stateElapsed=now=>(now-interaction.enteredAt)/1000,clamp01=x=>THREE.MathUtils.clamp(x,0,1);
+    const easeOut=x=>1-Math.pow(1-clamp01(x),3),easeInOut=x=>{x=clamp01(x);return x*x*(3-2*x);};
+    function updateStatus(text){
+      statusLine.classList.add('fade');requestAnimationFrame(()=>{statusLine.textContent=text;statusLine.classList.remove('fade');});
+    }
+    function promptForState(){
+      if(interaction.state==='IDLE'&&noCameraMode)return 'Click the night sky to receive a lantern.';
+      const map={DESCENDING:'A little light is finding its way to you.',OPENING:'This message is for you.',CENTERING:'This message is for you.',READING:'Take your time.',COLLAPSING:'Hold this moment close.',CLOSED:'Hold this moment close.',RELEASING:'Gently raise your hand to let it go.',FINALE:'May this light stay with you.'};
+      if(interaction.state==='IDLE')return cameraState==='ON'||noCameraMode?'Open your palm to receive a lantern.':'A little light is waiting for you.';
+      return map[interaction.state]||'A little light is waiting for you.';
+    }
+    function enterState(state){
+      interaction.state=state;interaction.enteredAt=performance.now();setInteractionState(state);updateStatus(promptForState());
+      document.body.classList.toggle('reading-mode',state==='CENTERING'||state==='READING');
+      document.body.classList.toggle('finale-mode',state==='FINALE');
+      controls.autoRotate=false;
+    }
+    function setExplode(v){interaction.explode=clamp01(v);mainLantern.material.uniforms.uExplode.value=interaction.explode;}
+    function setHeartMorph(v){const value=clamp01(v);mainLantern.material.uniforms.uHeartMorph.value=value;envMat.uniforms.uHeartMorph.value=value;}
+    function worldAbovePalm(out=followTarget){out.copy(palmSmoothedWorld);out.y+=CONFIG.HAND_VERTICAL_OFFSET;return out;}
+    function getScreenCenter(out=screenCenter){camera.updateMatrixWorld();camera.getWorldDirection(viewDirection);return out.copy(camera.position).addScaledVector(viewDirection,19);}
+    function setLetterVisible(open){
+      readingLayer.setAttribute('aria-hidden',String(!open));
+      if(open){readingLayer.classList.add('is-visible');letterPaper.classList.remove('is-closing');requestAnimationFrame(()=>letterPaper.classList.add('is-open'));}
+      else{letterPaper.classList.remove('is-open');letterPaper.classList.add('is-closing');readingLayer.classList.remove('is-visible');}
+    }
+    function resetLetterText(){
+      letterPieces.forEach(el=>el.classList.remove('revealed'));
+      letterPaper.scrollTop=0;closeLetterButton.hidden=true;releaseLanternButton.hidden=true;
+      closeLetterButton.disabled=true;releaseLanternButton.disabled=true;
+    }
     function beginDescent(){
-      enterState('DESCENDING');controls.autoRotate=false;releaseButton.hidden=true;
-      const from=interactionGroup.position.clone(),to=targetOverPalm();
-      const p1=from.clone().add(new THREE.Vector3(2.5,4,-1.5));
-      const p2=to.clone().add(new THREE.Vector3(-1.8,7,-1.0));
-      interaction.descentCurve=new THREE.CubicBezierCurve3(from,p1,p2,to);
-      interactionGroup.scale.setScalar(0.36);cometTrail.visible=true;
+      enterState('DESCENDING');controls.enabled=false;controls.autoRotate=false;openLanternButton.hidden=true;
+      const from=interactionGroup.position.clone(),to=worldAbovePalm(new THREE.Vector3());
+      interaction.descentCurve=new THREE.CubicBezierCurve3(from,from.clone().add(new THREE.Vector3(2.4,5,-1.2)),to.clone().add(new THREE.Vector3(-1.8,7,-1.5)),to);
+      interactionGroup.scale.setScalar(0.32);cometTrail.visible=true;interaction.handFollowWeight=1;interaction.positionMode='HAND_TRACKING';
+      playSfx('summon');
     }
     function beginOpening(){
-      enterState('OPENING');controls.autoRotate=false;interaction.openingFrom=interaction.explode;
-      interaction.energy=0.65;fireCore.visible=true;
+      enterState('OPENING');interaction.openingFrom=interaction.explode;interaction.energy=0.68;interaction.positionMode='HAND_TRACKING';interaction.handFollowWeight=1;
+      closeLetterButton.hidden=true;releaseLanternButton.hidden=true;openLanternButton.hidden=true;
+      playSfx('burst');
+    }
+    function beginCentering(){
+      enterState('CENTERING');interaction.centerStart.copy(interactionGroup.position);getScreenCenter(centerTarget);
+      interaction.centerCurve=new THREE.CubicBezierCurve3(interaction.centerStart.clone(),interaction.centerStart.clone().lerp(centerTarget,0.38).add(new THREE.Vector3(2.5,3,-2)),interaction.centerStart.clone().lerp(centerTarget,0.72).add(new THREE.Vector3(-2,1,1)),centerTarget.clone());
+      interaction.handFollowWeight=1;interaction.positionMode='HAND_TRACKING';interaction.letterShownAt=0;interaction.revealIndex=0;
+      resetLetterText();setLetterVisible(true);playSfx('letter');
+    }
+    function beginReading(){
+      enterState('READING');interaction.positionMode='READING_LOCKED';interaction.handFollowWeight=0;
+      interaction.readingSince=performance.now();interaction.readingReadyAt=interaction.readingSince+CONFIG.TEXT_REVEAL_DURATION*1000;
+      readingPalmHistory=[];readingLiftGateOpen=false;palmHistory=[];
+      stableGesture='UNKNOWN';candidateGesture='UNKNOWN';candidateGestureAt=performance.now();openEventSent=true;
+      closeLetterButton.hidden=false;releaseLanternButton.hidden=false;
+      closeLetterButton.disabled=true;releaseLanternButton.disabled=true;
+    }
+    function beginCollapse(){
+      if(interaction.state!=='READING'||performance.now()<interaction.readingReadyAt+CONFIG.MIN_READING_DURATION*1000)return;
+      enterState('COLLAPSING');interaction.collapseFrom=interaction.explode;interaction.positionMode='READING_LOCKED';
+      setLetterVisible(false);playSfx('collapse');
     }
     function beginRelease(){
-      enterState('RELEASING');interaction.releaseStart.copy(interactionGroup.position);
-      const end=interaction.releaseStart.clone().add(new THREE.Vector3((rand()-0.5)*8,21,-24));
-      const c1=interaction.releaseStart.clone().add(new THREE.Vector3(-1,8,-4));
-      const c2=end.clone().add(new THREE.Vector3(3,-5,-5));
-      interaction.releaseCurve=new THREE.CubicBezierCurve3(interaction.releaseStart.clone(),c1,c2,end);
-      interaction.releaseCalled=false;interaction.releaseExplode=interaction.explode;cometTrail.visible=true;releaseButton.disabled=true;
+      if(interaction.state!=='READING'||performance.now()<interaction.readingReadyAt+CONFIG.MIN_READING_DURATION*1000)return;
+      enterState('RELEASING');interaction.releaseStart.copy(interactionGroup.position);interaction.releaseExplode=interaction.explode;
+      const end=interaction.releaseStart.clone().add(new THREE.Vector3((rand()-0.5)*5,24,-35));
+      interaction.releaseEnd.copy(end);
+      interaction.releaseCurve=new THREE.CubicBezierCurve3(interaction.releaseStart.clone(),interaction.releaseStart.clone().add(new THREE.Vector3(-1,8,-5)),end.clone().add(new THREE.Vector3(3,-5,-5)),end);
+      interaction.releaseCalled=false;setLetterVisible(false);closeLetterButton.hidden=true;releaseLanternButton.hidden=true;
+      cometTrail.visible=true;playSfx('release');
     }
-    function onLanternReleased(){
-      window.dispatchEvent(new CustomEvent('lanternreleased'));
+    function beginFinale(){
+      enterState('FINALE');interaction.finaleStart=performance.now();interaction.finaleShown=false;getScreenCenter(centerTarget);interaction.finaleCenter.copy(centerTarget);
+      interaction.finaleFrom.copy(interactionGroup.position);interaction.finalCurve=new THREE.CubicBezierCurve3(interaction.finaleFrom.clone(),interaction.finaleFrom.clone().lerp(interaction.finaleCenter,0.35).add(new THREE.Vector3(3,6,-2)),interaction.finaleFrom.clone().lerp(interaction.finaleCenter,0.68).add(new THREE.Vector3(-2,2,0)),interaction.finaleCenter.clone());
+      setExplode(0);setHeartMorph(0);interaction.energy=1;fireworks.position.copy(interaction.finaleCenter);fireworks.visible=false;
+      finaleLayer.classList.remove('is-ready');finaleLayer.classList.add('is-visible');playSfx('finale');
     }
+    function onLanternReleased(){window.dispatchEvent(new CustomEvent('lanternreleased'));}
     if(typeof window.onLanternReleased!=='function')window.onLanternReleased=onLanternReleased;
     function handleGestureEvent(name){
       if(name==='PALM_OPEN'){
-        if(interaction.state==='IDLE')beginDescent();
+        if(interaction.state==='IDLE'&&cameraState==='ON')beginDescent();
         else if(interaction.state==='CLOSED')beginOpening();
-      }else if(name==='PALM_CLOSED'&&interaction.state==='READING'){
-        enterState('CLOSED');interaction.collapseFrom=interaction.explode;interaction.collapseFlashDone=false;releaseButton.hidden=true;
-      }else if(name==='PALM_UP'&&interaction.state==='READING'&&performance.now()-interaction.readingSince>=5000)beginRelease();
+      }else if(name==='PALM_CLOSED'&&interaction.state==='READING')beginCollapse();
+      else if(name==='PALM_UP'&&interaction.state==='READING')beginRelease();
     }
     window.addEventListener('PALM_OPEN',()=>handleGestureEvent('PALM_OPEN'));
     window.addEventListener('PALM_CLOSED',()=>handleGestureEvent('PALM_CLOSED'));
     window.addEventListener('PALM_UP',()=>handleGestureEvent('PALM_UP'));
-    window.addEventListener('HAND_LOST',()=>{ /* retain the last smoothed target and pause in place */ });
-    releaseButton.addEventListener('click',()=>{if(interaction.state==='READING'&&performance.now()-interaction.readingSince>=5000)beginRelease();});
+    window.addEventListener('HAND_LOST',()=>{readingPalmHistory=[];readingLiftGateOpen=false;});
+    closeLetterButton.addEventListener('click',beginCollapse);
+    releaseLanternButton.addEventListener('click',beginRelease);
+    openLanternButton.addEventListener('click',()=>{if(interaction.state==='CLOSED')beginOpening();});
+    readAgainButton.addEventListener('click',()=>{if(interaction.state==='FINALE'){enterState('RESETTING');interaction.resetStart=performance.now();interaction.finaleCenter.copy(interactionGroup.position);interaction.resetCurve=new THREE.CubicBezierCurve3(interaction.finaleCenter.clone(),interaction.finaleCenter.clone().add(new THREE.Vector3(-2,6,-4)),new THREE.Vector3(0,18,-24),new THREE.Vector3(0,14,-18));finaleLayer.classList.remove('is-ready','is-visible');playSfx('reset');}});
 
-    function updateInteraction(now,delta,t){
-      const elapsed=stateElapsed(now);
-      const mainMat=mainLantern.material,trailMaterial=cometTrail.material;
-      mainMat.uniforms.uHandPos.value.copy(palmSmoothedWorld);
-      trailMaterial.uniforms.uHandPos.value.copy(palmSmoothedWorld);
-      if(interaction.state==='IDLE'){
-        controls.autoRotate=true;interaction.energy=0.14;setExplode(0);
-        fireCore.visible=false;gratitudePaper.visible=false;cometTrail.visible=false;
-      }else if(interaction.state==='DESCENDING'){
-        const q=easeOut(elapsed/CONFIG.DESCEND_DURATION),target=targetOverPalm();
-        if(interaction.descentCurve){interaction.descentCurve.v3.copy(target);interactionGroup.position.copy(interaction.descentCurve.getPoint(q));}
-        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(0.36,1,q));
-        interaction.energy=0.34+0.48*q;setExplode(0);gratitudePaper.visible=false;
-        if(elapsed>=CONFIG.DESCEND_DURATION){interactionGroup.position.copy(target);cometTrail.visible=false;beginOpening();}
-      }else if(interaction.state==='OPENING'){
-        const hover=CONFIG.HOVER_DURATION,charge=0.36,burst=CONFIG.EXPLODE_DURATION;
-        if(elapsed<hover){interaction.energy=0.7+0.12*Math.sin(t*5);setExplode(interaction.openingFrom);}
-        else if(elapsed<hover+charge){
-          const q=(elapsed-hover)/charge;interaction.energy=0.78+0.36*q;
-          setExplode(interaction.openingFrom);
-        }else{
-          const q=easeOut((elapsed-hover-charge)/burst);
-          interaction.energy=CONFIG.PARTICLE_ENERGY;
-          setExplode(THREE.MathUtils.lerp(interaction.openingFrom,1,q));
-        }
-        fireCore.visible=elapsed<hover+charge+0.12;
-        if(fireCore.visible){fireCore.scale.setScalar(0.7+Math.sin(t*9)*0.34);fireCore.material.opacity=0.82;}
-        const follow=targetOverPalm(),diff=follow.sub(interactionGroup.position);
-        diff.multiplyScalar(1-Math.exp(-delta*CONFIG.HAND_FOLLOW_DAMPING));
-        const maxStep=delta*12;if(diff.length()>maxStep)diff.setLength(maxStep);
-        interactionGroup.position.add(diff);
-        if(elapsed>=hover+charge+burst){
-          setExplode(1);interaction.energy=0.72;interaction.readingSince=now;
-          enterState('READING');gratitudePaper.visible=true;gratitudePaper.material.opacity=0;
-          gratitudePaper.scale.setScalar(0.93);interaction.lastDraw=0;releaseButton.hidden=false;
-        }
-      }else if(interaction.state==='READING'){
-        const follow=targetOverPalm(),diff=follow.sub(interactionGroup.position);
-        diff.multiplyScalar(1-Math.exp(-delta*CONFIG.HAND_FOLLOW_DAMPING));
-        const maxStep=delta*11;if(diff.length()>maxStep)diff.setLength(maxStep);
-        interactionGroup.position.add(diff);
-        interaction.energy=0.7;
-        gratitudePaper.visible=true;gratitudePaper.quaternion.copy(camera.quaternion);
-        gratitudePaper.material.opacity=THREE.MathUtils.damp(gratitudePaper.material.opacity,1,2.2,delta);
-        gratitudePaper.scale.setScalar(THREE.MathUtils.damp(gratitudePaper.scale.x,1,2.1,delta));
-        const reveal=clamp01((now-interaction.readingSince)/1900);
-        if(now-interaction.lastDraw>110){drawGratitude(reveal);interaction.lastDraw=now;}
-        releaseButton.hidden=false;releaseButton.disabled=now-interaction.readingSince<5000;
-      }else if(interaction.state==='CLOSED'){
-        const q=easeOut(elapsed/CONFIG.COLLAPSE_DURATION);
-        setExplode(interaction.collapseFrom*(1-q));interaction.energy=0.78*(1-q)+0.18;
-        gratitudePaper.visible=true;gratitudePaper.material.opacity=1-q;
-        gratitudePaper.quaternion.copy(camera.quaternion);
-        if(now-interaction.lastDraw>80){drawGratitude(1-q);interaction.lastDraw=now;}
-        if(elapsed>=CONFIG.COLLAPSE_DURATION){setExplode(0);gratitudePaper.visible=false;if(!interaction.collapseFlashDone){interaction.collapseFlashDone=true;fireCore.visible=true;fireCore.material.opacity=0.9;interaction.flashUntil=now+180;}}
-      }else if(interaction.state==='RELEASING'){
-        const collapse=CONFIG.COLLAPSE_DURATION,moveDuration=Math.max(0.1,CONFIG.RELEASE_DURATION-collapse);
-        const q=clamp01((elapsed-collapse)/moveDuration);
-        setExplode(interaction.releaseExplode*(1-easeOut(elapsed/collapse)));
-        gratitudePaper.material.opacity=Math.max(0,1-elapsed/collapse);gratitudePaper.visible=gratitudePaper.material.opacity>0.01;
-        gratitudePaper.quaternion.copy(camera.quaternion);
-        if(interaction.releaseCurve){interactionGroup.position.copy(interaction.releaseCurve.getPoint(easeOut(q)));}
-        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(1,0.22,easeOut(q)));
-        interaction.energy=0.78*(1-q)+0.12;cometTrail.visible=true;
-        if(elapsed>=CONFIG.RELEASE_DURATION){
-          if(!interaction.releaseCalled){interaction.releaseCalled=true;window.onLanternReleased();}
-          setExplode(0);interactionGroup.position.set(0,14,-18);interactionGroup.scale.setScalar(0.34);
-          cometTrail.visible=false;gratitudePaper.visible=false;fireCore.visible=false;releaseButton.hidden=true;releaseButton.disabled=false;
-          enterState('IDLE');controls.autoRotate=true;
-        }
-      }
-      if(interaction.state==='CLOSED'&&interaction.flashUntil){
-        fireCore.visible=now<interaction.flashUntil;
-        fireCore.material.opacity=Math.max(0,(interaction.flashUntil-now)/180)*0.9;
-      }
-      const surge=interaction.state==='OPENING'?Math.sin(Math.PI*clamp01((elapsed-CONFIG.HOVER_DURATION)/0.95)):0;
-      mainMat.uniforms.uEnergy.value=interaction.energy+surge*0.22;
-      mainMat.uniforms.uExplode.value=interaction.explode;
-      trailMaterial.uniforms.uTime.value=t;
-      trailMaterial.uniforms.uEnergy.value=interaction.energy;
-      cometTrail.visible=interaction.state==='DESCENDING'||interaction.state==='RELEASING';
-      const inBurst=interaction.state==='OPENING'&&elapsed>CONFIG.HOVER_DURATION+0.36&&elapsed<CONFIG.HOVER_DURATION+0.66;
-      const targetBloom=inBurst?CONFIG.BLOOM_PEAK_STRENGTH:CONFIG.bloomStrength;
-      bloom.strength=THREE.MathUtils.damp(bloom.strength,targetBloom,3.5,delta);
+    function pointToWorld(clientX,clientY){
+      const x=clientX/innerWidth*2-1,y=-(clientY/innerHeight)*2+1;
+      camera.updateMatrixWorld();raycaster.setFromCamera(new THREE.Vector2(x,y),camera);camera.getWorldDirection(interactionPlaneNormal);
+      interactionPlanePoint.copy(camera.position).addScaledVector(interactionPlaneNormal,18);
+      interactionPlane.setFromNormalAndCoplanarPoint(interactionPlaneNormal,interactionPlanePoint);
+      return raycaster.ray.intersectPlane(interactionPlane,rayHit)?rayHit.clone():null;
     }
+    continueNoCameraButton.addEventListener('click',()=>{
+      unlockAudio();noCameraMode=true;
+      if(cameraState==='ON')stopCamera('OFF');
+      continueNoCameraButton.hidden=true;updateStatus('Click the night sky to receive a lantern.');
+    });
+    renderer.domElement.addEventListener('pointerdown',event=>{
+      if(!noCameraMode)return;unlockAudio();
+      const p=pointToWorld(event.clientX,event.clientY);if(p){palmTargetWorld.copy(p);palmSmoothedWorld.copy(p);hasPalmTarget=true;lastHandTargetAt=performance.now();}
+      if(interaction.state==='IDLE')beginDescent();
+    });
+    renderer.domElement.addEventListener('pointermove',event=>{
+      if(!noCameraMode||interaction.state==='READING'||interaction.state==='FINALE'||interaction.state==='RESETTING')return;
+      if(!['DESCENDING','OPENING','CLOSED','COLLAPSING'].includes(interaction.state))return;
+      const p=pointToWorld(event.clientX,event.clientY);if(p){palmTargetWorld.copy(p);hasPalmTarget=true;lastHandTargetAt=performance.now();}
+    });
 
+    const initialInteractionPosition=new THREE.Vector3(0,14,-18);
+    function followHand(delta,speed=12){
+      if(interaction.positionMode!=='HAND_TRACKING'||interaction.handFollowWeight<=0||!hasPalmTarget)return;
+      worldAbovePalm(followTarget);followDelta.copy(followTarget).sub(interactionGroup.position);
+      followDelta.multiplyScalar(1-Math.exp(-delta*CONFIG.HAND_FOLLOW_DAMPING))*interaction.handFollowWeight;
+      const maxStep=delta*speed;if(followDelta.length()>maxStep)followDelta.setLength(maxStep);
+      interactionGroup.position.add(followDelta);
+    }
+    function updateLetterReveal(now){
+      const elapsed=now-interaction.readingSince;
+      const count=letterPieces.length;
+      while(interaction.revealIndex<count&&elapsed>=((interaction.revealIndex+1)/count)*CONFIG.TEXT_REVEAL_DURATION*1000){
+        letterPieces[interaction.revealIndex].classList.add('revealed');interaction.revealIndex++;
+      }
+      const complete=now>=interaction.readingReadyAt;
+      closeLetterButton.disabled=!complete||now<interaction.readingReadyAt+CONFIG.MIN_READING_DURATION*1000;
+      releaseLanternButton.disabled=closeLetterButton.disabled;
+    }
+    function setMaterialFinale(mat,progress,pulse,time,dim){
+      mat.uniforms.uHeartMorph.value=progress;mat.uniforms.uFinalePulse.value=pulse;mat.uniforms.uFinaleTime.value=time;mat.uniforms.uAmbientDim.value=dim;
+    }
+    function updateInteraction(now,delta,t){
+      const elapsed=stateElapsed(now),mainMat=mainLantern.material;
+      const activeTracking=interaction.positionMode==='HAND_TRACKING'&&interaction.state!=='READING';
+      if(activeTracking)mainMat.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      if(interaction.state==='IDLE'){
+        controls.enabled=true;controls.autoRotate=true;interaction.energy=0.14;setExplode(0);setHeartMorph(0);
+        cometTrail.visible=false;fireworks.visible=false;openLanternButton.hidden=true;
+      }else if(interaction.state==='DESCENDING'){
+        controls.enabled=false;const q=easeOut(elapsed/CONFIG.DESCEND_DURATION);worldAbovePalm(followTarget);
+        if(interaction.descentCurve){interaction.descentCurve.v3.copy(followTarget);interactionGroup.position.copy(interaction.descentCurve.getPoint(q,followTarget));}
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(0.32,1,q));interaction.handFollowWeight=1;
+        interaction.energy=0.28+0.5*q;setExplode(0);cometTrail.visible=true;followHand(delta,12);
+        if(elapsed>=CONFIG.DESCEND_DURATION){interactionGroup.position.copy(followTarget);cometTrail.visible=false;beginOpening();playSfx('descent');}
+      }else if(interaction.state==='OPENING'){
+        const hover=CONFIG.HOVER_DURATION,charge=0.38,burst=CONFIG.EXPLODE_DURATION;
+        interaction.positionMode='HAND_TRACKING';interaction.handFollowWeight=1;followHand(delta,12);
+        if(elapsed<hover){interaction.energy=0.64+0.12*Math.sin(t*4);setExplode(interaction.openingFrom);}
+        else if(elapsed<hover+charge){const q=(elapsed-hover)/charge;interaction.energy=0.72+0.35*q;setExplode(interaction.openingFrom);}
+        else{const q=easeOut((elapsed-hover-charge)/burst);interaction.energy=CONFIG.PARTICLE_ENERGY;setExplode(THREE.MathUtils.lerp(interaction.openingFrom,1,q));}
+        fireCore.visible=elapsed>=hover&&elapsed<hover+charge+0.18;
+        if(fireCore.visible){fireCore.scale.setScalar(0.72+Math.sin(t*9)*0.28);fireCore.material.opacity=0.82;}
+        if(elapsed>=hover+charge+burst){setExplode(1);interaction.energy=0.82;beginCentering();}
+      }else if(interaction.state==='CENTERING'){
+        controls.enabled=false;const q=easeInOut(elapsed/CONFIG.READING_CENTER_DURATION);
+        if(interaction.centerCurve)interactionGroup.position.copy(interaction.centerCurve.getPoint(q,followTarget));
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(1,1.34,easeOut(q)));
+        interaction.handFollowWeight=1-q;interaction.positionMode=q>0.98?'READING_LOCKED':'HAND_TRACKING';
+        interaction.energy=0.76;setExplode(1);cometTrail.visible=false;
+        if(elapsed>=CONFIG.READING_CENTER_DURATION&&!interaction.letterShownAt){
+          interaction.letterShownAt=now;readingLayer.setAttribute('aria-hidden','false');readingLayer.classList.add('is-visible');
+          requestAnimationFrame(()=>letterPaper.classList.add('is-open'));
+        }
+        if(interaction.letterShownAt&&now-interaction.letterShownAt>=CONFIG.LETTER_OPEN_DURATION*1000)beginReading();
+      }else if(interaction.state==='READING'){
+        // Locked: no camera, pointer, or hand coordinate writes the letter or cloud transform.
+        interaction.positionMode='READING_LOCKED';interaction.handFollowWeight=0;interaction.energy=0.66;
+        updateLetterReveal(now);
+      }else if(interaction.state==='COLLAPSING'){
+        const q=easeOut(elapsed/CONFIG.COLLAPSE_DURATION);setExplode(interaction.collapseFrom*(1-q));interaction.energy=0.7*(1-q)+0.18;
+        if(elapsed>=CONFIG.COLLAPSE_DURATION){setExplode(0);readingLayer.classList.remove('is-visible','is-open');readingLayer.setAttribute('aria-hidden','true');letterPaper.classList.remove('is-open','is-closing');letterPaper.scrollTop=0;enterState('CLOSED');interaction.positionMode='HAND_TRACKING';interaction.handFollowWeight=0;openLanternButton.hidden=!noCameraMode;}
+      }else if(interaction.state==='CLOSED'){
+        interaction.positionMode='HAND_TRACKING';interaction.handFollowWeight=hasPalmTarget?THREE.MathUtils.damp(interaction.handFollowWeight,1,1/CONFIG.RETURN_TO_HAND_DURATION,delta):0;
+        followHand(delta,11);interaction.energy=0.22;setExplode(0);openLanternButton.hidden=!noCameraMode;
+      }else if(interaction.state==='RELEASING'){
+        const collapse=0.8,motion=Math.max(0.1,CONFIG.RELEASE_DURATION-collapse);
+        const q=clamp01((elapsed-collapse)/motion);setExplode(interaction.releaseExplode*(1-easeOut(elapsed/collapse)));
+        interaction.energy=0.78*(1-q)+0.12;cometTrail.visible=true;interaction.positionMode='READING_LOCKED';
+        if(elapsed>=collapse&&interaction.releaseCurve)interactionGroup.position.copy(interaction.releaseCurve.getPoint(easeInOut(q),followTarget));
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(1,0.18,easeOut(q)));
+        if(elapsed>=CONFIG.RELEASE_DURATION){
+          interactionGroup.position.copy(interaction.releaseEnd);interactionGroup.scale.setScalar(0.18);setExplode(0);cometTrail.visible=false;
+          if(!interaction.releaseCalled){interaction.releaseCalled=true;try{window.onLanternReleased();}catch(error){console.warn('Release callback failed:',error);}beginFinale();}
+        }
+      }else if(interaction.state==='FINALE'){
+        const t0=elapsed,R=CONFIG.FINALE_RESPONSE_DURATION,RIVER=CONFIG.FINALE_RIVER_DURATION,HEART=CONFIG.FINALE_HEART_DURATION,FIRE=CONFIG.FINALE_FIREWORK_DURATION;
+        const tRiver=R,tHeart=R+RIVER,tFire=tHeart+HEART,tBless=tFire+FIRE;
+        const qRiver=easeInOut((t0-tRiver)/RIVER);
+        interaction.energy=0.88;setExplode(1);cometTrail.visible=false;controls.enabled=false;controls.autoRotate=false;
+        getScreenCenter(centerTarget);
+        if(t0<R){setExplode(easeOut(t0/R));setMaterialFinale(bgMat,0,1,t0,0);setMaterialFinale(envMat,0,0,0,0);interactionGroup.scale.setScalar(0.2);}
+        else if(t0<tHeart){
+          if(interaction.finalCurve)interactionGroup.position.copy(interaction.finalCurve.getPoint(qRiver,followTarget));
+          interactionGroup.scale.setScalar(THREE.MathUtils.lerp(0.2,1.08,qRiver));
+          mainMat.uniforms.uSphereRotationSpeed.value=CONFIG.SPHERE_ROTATION_SPEED*(1.0+1.8*qRiver);
+          mainMat.uniforms.uFinalePulse.value=0.5+0.35*Math.sin(t0*2.3);mainMat.uniforms.uFinaleTime.value=t0;
+          envMat.uniforms.uFinalePulse.value=0.7;envMat.uniforms.uFinaleTime.value=t0;
+          setMaterialFinale(bgMat,0,0.85,t0,0);setHeartMorph(0);
+        }else if(t0<tFire){
+          interactionGroup.position.copy(centerTarget);interactionGroup.scale.setScalar(1.08);
+          const q=easeInOut((t0-tHeart)/HEART);setHeartMorph(q);setExplode(1);
+          mainMat.uniforms.uSphereRotationSpeed.value=CONFIG.SPHERE_ROTATION_SPEED;
+          mainMat.uniforms.uFinalePulse.value=0.38;mainMat.uniforms.uFinaleTime.value=t0;
+          setMaterialFinale(bgMat,0,0.6,t0,0);setMaterialFinale(envMat,q,0,0,0);
+        }else if(t0<tBless){
+          setHeartMorph(1);setExplode(0);interactionGroup.position.copy(centerTarget);
+          interactionGroup.scale.setScalar(1.08);
+          fireworks.visible=true;fireworkMaterial.uniforms.uProgress.value=clamp01((t0-tFire)/FIRE);fireworkMaterial.uniforms.uTime.value=t;
+          fireworkMaterial.uniforms.uEnergy.value=1;
+          mainMat.uniforms.uFinalePulse.value=1;mainMat.uniforms.uFinaleTime.value=t0;
+          setMaterialFinale(bgMat,0,1,t0,0.05);setMaterialFinale(envMat,1,0.24+0.08*Math.sin((t0-tBless)*2.2),0,0);
+          const peak=1+0.22*(1-clamp01((t0-tFire)/FIRE));bloom.strength=THREE.MathUtils.damp(bloom.strength,CONFIG.BLOOM_PEAK_STRENGTH,3,delta);
+        }else{
+          setHeartMorph(1);setExplode(0);fireworks.visible=false;interactionGroup.position.copy(centerTarget);
+          interactionGroup.scale.setScalar(1.08+0.025*Math.sin((t0-tBless)*2.2));
+          mainMat.uniforms.uFinalePulse.value=0.38+0.13*Math.sin((t0-tBless)*2.2);mainMat.uniforms.uFinaleTime.value=t0;
+          setMaterialFinale(bgMat,0,0.35,t0,0);setMaterialFinale(envMat,1,0,0,0);
+          bloom.strength=THREE.MathUtils.damp(bloom.strength,CONFIG.bloomStrength,2.2,delta);
+          if(!interaction.finaleShown&&t0>=tBless+0.5){interaction.finaleShown=true;finaleLayer.classList.add('is-ready');}
+        }
+      }else if(interaction.state==='RESETTING'){
+        const q=easeInOut(elapsed/2.4);setHeartMorph(1-q);setExplode(0);fireworks.visible=false;
+        if(interaction.resetCurve)interactionGroup.position.copy(interaction.resetCurve.getPoint(q,followTarget));
+        interactionGroup.scale.setScalar(THREE.MathUtils.lerp(1.08,0.34,q));interaction.energy=0.18;
+        mainMat.uniforms.uFinalePulse.value=0;mainMat.uniforms.uFinaleTime.value=0;
+        setMaterialFinale(bgMat,0,0,0,0);setMaterialFinale(envMat,0,0,0,0);
+        if(elapsed>=2.4){
+          interactionGroup.position.copy(initialInteractionPosition);interactionGroup.scale.setScalar(0.34);
+          mainMat.uniforms.uSphereRotationSpeed.value=CONFIG.SPHERE_ROTATION_SPEED;
+          mainMat.uniforms.uHeartMorph.value=0;envMat.uniforms.uHeartMorph.value=0;mainMat.uniforms.uFinalePulse.value=0;
+          finaleLayer.classList.remove('is-ready','is-visible');document.body.classList.remove('finale-mode','reading-mode');
+          controls.enabled=true;controls.autoRotate=true;camera.position.copy(initialCameraPosition);controls.target.copy(initialCameraTarget);controls.update();
+          readingLayer.classList.remove('is-visible','is-open');readingLayer.setAttribute('aria-hidden','true');letterPaper.classList.remove('is-open','is-closing');letterPaper.scrollTop=0;
+          resetLetterText();palmHistory=[];readingPalmHistory=[];readingLiftGateOpen=false;stableGesture='UNKNOWN';candidateGesture='UNKNOWN';candidateGestureAt=now;
+          openEventSent=stableGesture==='OPEN';closedSince=0;closedEventSent=false;interaction.positionMode='HAND_TRACKING';interaction.handFollowWeight=1;
+          enterState('IDLE');openLanternButton.hidden=true;
+        }
+      }
+      if(interaction.state!=='FINALE')mainMat.uniforms.uEnergy.value=interaction.energy;
+      if(interaction.state!=='FINALE'){
+        mainMat.uniforms.uFinalePulse.value=0;mainMat.uniforms.uFinaleTime.value=0;
+        setMaterialFinale(bgMat,0,0,0,interaction.state==='READING'?1-CONFIG.READING_BACKGROUND_BRIGHTNESS:0);
+        setMaterialFinale(envMat,0,0,0,interaction.state==='READING'?1-CONFIG.READING_BACKGROUND_BRIGHTNESS:0);
+      }
+      trailMat.uniforms.uEnergy.value=interaction.energy;trailMat.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      trailMat.uniforms.uTime.value=t;
+      syncAudioMix(delta);
+      const inBurst=interaction.state==='OPENING'&&elapsed>CONFIG.HOVER_DURATION+0.38&&elapsed<CONFIG.HOVER_DURATION+0.68;
+      if(interaction.state!=='FINALE')bloom.strength=THREE.MathUtils.damp(bloom.strength,inBurst?CONFIG.BLOOM_PEAK_STRENGTH:CONFIG.bloomStrength,3.2,delta);
+    }
     const clock = new THREE.Clock();
     function updateMaterial(mat,t){if(mat.uniforms&&mat.uniforms.uTime)mat.uniforms.uTime.value=t;}
     function animate(){
@@ -1118,9 +1392,9 @@
     function resize() {
       const w = innerWidth, h = innerHeight;
       camera.aspect = w / h; camera.updateProjectionMatrix();
-      renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO) * CONFIG.qualityScale);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.MAX_PIXEL_RATIO, QUALITY.pixelRatio) * CONFIG.qualityScale);
       renderer.setSize(w, h); composer.setSize(w, h);
-      for (const mat of [mainLantern.material, bgMat, envMat, bokehMat, trailMat]) mat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+      for (const mat of [mainLantern.material, bgMat, envMat, bokehMat, trailMat, fireworkMaterial]) mat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
     }
     addEventListener('resize', resize, { passive: true });
     addEventListener('visibilitychange', () => { if (!document.hidden) clock.getDelta(); });
