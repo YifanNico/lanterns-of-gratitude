@@ -81,7 +81,7 @@
     #readAgain{position:absolute;bottom:max(9vh,64px);left:50%;transform:translateX(-50%);color:#fff1cf}
     .finale-copy{text-shadow:0 2px 8px #2b150c,0 1px 24px #0e0807}
     @media(max-width:600px){.title{top:65px}.status-line{bottom:42px;width:96vw}.audio-controls{bottom:12px}.no-camera{bottom:82px}}
-  </style>
+  #flightHint{font:13px/1.55 "Noto Serif SC",serif;text-align:center;color:#735534;min-height:3.1em;margin:19px 0 0}.letter-actions{padding-top:7px}</style>
 </head>
 <body>
   <div id="stage" aria-label="LANTERNS OF GRATITUDE immersive particle artwork"></div>
@@ -123,6 +123,7 @@
         <p class="letter-signature letter-piece" id="letterSignature"></p>
         <p class="letter-date letter-piece" id="letterDate"></p>
       </div>
+      <p id="flightHint" aria-live="polite"></p>
       <div class="letter-actions">
         <button id="closeLetter" class="text-action" type="button" hidden>Close</button>
         <button id="releaseLantern" class="text-action" type="button" hidden>Release the lantern</button>
@@ -350,6 +351,17 @@
     let candidateGestureAt = 0;
     let stableGesture = 'UNKNOWN';
     let openSince = 0;
+    let openCredit=0,lastPositive=0,lastHoldSample=0;
+    function clearOpen(){openCredit=lastPositive=lastHoldSample=0;}
+    function countOpen(raw,now){
+      const gap=now-lastHoldSample;
+      if(raw==='CLOSED'||now-lastPositive>240||gap>320)openCredit=0;
+      if(raw==='OPEN'){
+        if(lastPositive===lastHoldSample&&lastPositive>0&&gap<=240)openCredit+=gap;
+        lastPositive=now;
+      }
+      lastHoldSample=now;
+    }
     let openEventSent = false;
     let closedSince = 0;
     let closedEventSent = false;
@@ -397,7 +409,8 @@
     let lastInferenceAt = 0;
 
     function setCameraState(state, error = '') {
-      resetLift();
+      resetLift();clearOpen();openEventSent=false;
+      if(state==='ON'&&interaction.state==='IDLE')interaction.armed=true;
       cameraState = state;
       cameraError = error;
       pointerMode=state==='ON'?false:pointerMode||state==='OFF'||state==='ERROR'; syncUI();
@@ -438,7 +451,7 @@
 
     function emitInteraction(name, detail = {}) {
       const now = performance.now();
-      if (name !== 'PALM_OPEN' && name !== 'PALM_CLOSED' && now - lastInteractionEventAt < 420) return;
+      if (name.startsWith('PALM_SWIPE') && now - lastInteractionEventAt < 420) return;
       lastInteractionEventAt = now;
       setInteractionState(name);
       window.dispatchEvent(new CustomEvent(name, { detail: { ...detail, at: now, palmWorld: palmSmoothedWorld.clone() } }));
@@ -539,7 +552,6 @@
       if (nextGesture === 'OPEN') {
         openSince = now;
         closedSince = 0; closedEventSent = false;
-        openEventSent = false;
         setInteractionState('OPEN HOLD');
       } else if (nextGesture === 'CLOSED') {
         openSince = 0;
@@ -558,6 +570,7 @@
       const hands = result.landmarks || [];
       handCount = hands.length;
       if (!hands.length) {
+        countOpen('NO HAND',now);
         if(now-lastHandSeenAt>CONFIG.handExitRearmMs)interaction.armed=true;
         resetLift(); closedSince=0;closedEventSent=false;
         displayedGesture = 'NO HAND';
@@ -588,7 +601,7 @@
       lastHandSeenAt = now;
       const { gesture, palm, fingerMetrics: nextFingerMetrics } = classifyHand(hands[0]);
       fingerMetrics = nextFingerMetrics;
-      displayedGesture = gesture;
+      displayedGesture = gesture;countOpen(gesture,now);
       if (gesture !== 'CLOSED') closedSince=0;
       else if(stableGesture==='CLOSED'&&!closedSince) closedSince=now;
       if (gesture !== candidateGesture) { candidateGesture = gesture; candidateGestureAt = now; }
@@ -603,14 +616,14 @@
         hasPalmTarget = true;
         lastHandTargetAt = now;
         lastNormalizedPalm = mapped.screen;
-        if (interaction.state==='READING') sampleLift(mapped.screen,gesture,now);
+        if (interaction.state==='READING') sampleLift(palm,gesture,now);
         else processPalmMotion(mapped.screen, mapped.world, now);
         handMarker.visible = CONFIG.DEBUG;
         handHalo.visible = CONFIG.DEBUG;
       }
 
       if (gesture === 'OPEN' && stableGesture === 'OPEN' && openSince) {
-        holdDurationMs = now - openSince;
+        holdDurationMs = openCredit;
         if (holdDurationMs >= CONFIG.OPEN_HOLD_MS && !openEventSent) {
           openEventSent = true;
           emitInteraction('PALM_OPEN', { palm, heldMs: holdDurationMs });
@@ -681,7 +694,7 @@
             delegate: 'GPU'
           },
           runningMode: 'VIDEO',
-          numHands: 2,
+          numHands: 1,
           minHandDetectionConfidence: 0.55,
           minHandPresenceConfidence: 0.55,
           minTrackingConfidence: 0.5
@@ -1086,8 +1099,17 @@
       document.body.classList.toggle('reading-mode',['READING','CENTERING'].includes(state));
       const messages={IDLE:cameraState==='ERROR'?'Camera unavailable · Tap the sky to begin.':pointerMode?'Tap the night sky to receive a lantern.':ask?'A little light is waiting for you.':'Open your palm to receive a lantern.',DESCENDING:'A little light is finding its way to you.',OPENING:'This message is for you.',CENTERING:'This message is for you.',READING:'Take your time.',COLLAPSING:'Hold this moment close.',CLOSED:'Open your palm to read it again.',RELEASING:'May this light stay with you.',FINALE:'',RESETTING:''};
       $('statusLine').textContent=messages[state];
+      syncFlightHint();
+    }
+    function syncFlightHint(){
+      const hint=$('flightHint');
+      const msg=interaction.state!=='READING'?'':!interaction.ready?'安心阅读，稍后可放飞天灯。':
+        pointerMode||cameraState!=='ON'?'读完后，点下方按钮放飞天灯。':
+        liftBase?'现在，保持张掌，慢慢向上抬手。':'想放飞时，在镜头下半部张开手掌，稍停片刻。';
+      if(hint.textContent!==msg)hint.textContent=msg;
     }
     function enter(state){
+      if(state==='CLOSED'){clearOpen();openEventSent=false;}
       interaction.state=state;interaction.enteredAt=performance.now();interaction.ready=false;
       controls.autoRotate=state==='IDLE';controls.enabled=state==='IDLE'&&!pointerMode;
       setInteractionState(state);syncUI();
@@ -1109,21 +1131,40 @@
       tmp.clampLength(0,12*dt);lampPosition.add(tmp);
     }
     function descend(){
+      handHalo.visible=CONFIG.DEBUG;handHalo.material.opacity=.16;
       enter('DESCENDING');curve.v0.copy(lampPosition);curve.v1.copy(lampPosition).add(new THREE.Vector3(2.5,4,-1.5));
       curve.v3.copy(above());curve.v2.copy(curve.v3).add(new THREE.Vector3(-1.8,7,-1));
     }
-    const lift=[];let liftSince=0;
-    function resetLift(){lift.length=0;liftSince=0;}
-    function sampleLift(s,g,now){
-      if(!eventAllowed()||g!=='OPEN'||stableGesture!=='OPEN'){resetLift();return;}
-      if(lift.length&&now-lift[lift.length-1].t>260)resetLift();
-      if(!liftSince)liftSince=now;
-      const prev=lift[lift.length-1];lift.push({x:s.x,y:prev?prev.y*.45+s.y*.55:s.y,t:now});
-      while(lift.length>1&&now-lift[0].t>1050)lift.shift();
-      if(now-liftSince<600||lift.length<6)return;
-      const a=lift[0],b=lift[lift.length-1],dy=a.y-b.y,dt=(now-a.t)/1000;
-      const rising=lift.slice(1).filter((p,i)=>p.y<lift[i].y-.002).length;
-      if(dy>.145&&dy/dt>.14&&dy/dt<1.6&&Math.abs(b.x-a.x)<dy*.8&&rising>=4)emitInteraction('PALM_UP',{dy,speed:dy/dt});
+    // Arm only after the open palm settles. Measure raw camera coordinates,
+    // independent of viewport crop, camera orientation and letter position.
+    let liftBase=null,lastLift=null,settle=null,liftStart=0,rises=0;
+    function resetLift(){
+      const hadBase=!!liftBase;liftBase=lastLift=settle=null;liftStart=rises=0;
+      if(hadBase)syncFlightHint();
+    }
+    function sampleLift(p,g,now){
+      if(!eventAllowed()||pointerMode||cameraState!=='ON'||g==='CLOSED'){resetLift();return;}
+      if(lastLift&&now-lastLift.t>290)resetLift();
+      if(g!=='OPEN'||stableGesture!=='OPEN')return;
+      const k=lastLift?1-Math.exp(-(now-lastLift.t)/85):1;
+      const x=lastLift?lastLift.x+(p.x-lastLift.x)*k:p.x;
+      const y=lastLift?lastLift.y+(p.y-lastLift.y)*k:p.y;
+      const prev=lastLift;lastLift={x,y,t:now};
+      if(!liftBase){
+        if(!settle||Math.hypot(x-settle.x,y-settle.y)>.034)settle={x,y,t:now,n:1};
+        else settle.n++;
+        if(now-settle.t>=320&&settle.n>=3){liftBase={x,y};syncFlightHint();}
+        return;
+      }
+      const dy=liftBase.y-y,dx=Math.abs(x-liftBase.x);
+      if(dy<-.055||dx>.18){resetLift();return;}
+      if(dy<.014){liftStart=rises=0;return;}
+      if(!liftStart)liftStart=prev.t;
+      if(prev.y-y>.001)rises++;
+      const dt=(now-liftStart)/1000;
+      if(dt>2.8){resetLift();return;}
+      if(dy>=.115&&dx<dy*.95&&dt>=.22&&dy/dt>.055&&dy/dt<1.35&&rises>=3)
+        emitInteraction('PALM_UP',{dy,speed:dy/dt});
     }
     window.addEventListener('HAND_LOST',()=>{resetLift();interaction.armed=true;});
     window.addEventListener('PALM_OPEN',()=>{if(pointerMode||cameraState!=='ON')return;
@@ -1145,7 +1186,21 @@
       const state=interaction.state,e=Math.max(0,(now-interaction.enteredAt)/1000);
       let energy=.16,explode=0,bloomTarget=CONFIG.bloomStrength;
       core.visible=false;summonCore.visible=false;cometTrail.visible=false;
-      if(state==='DESCENDING'){
+      if(state==='IDLE'&&cameraState==='ON'&&!pointerMode){
+        const seen=hasPalmTarget&&now-lastHandSeenAt<CONFIG.handLossGraceMs;
+        const charging=seen&&interaction.armed&&openCredit>0&&now-lastPositive<240;
+        const q=charging?clamp(openCredit/CONFIG.OPEN_HOLD_MS):0;
+        controls.autoRotate=!seen;
+        if(seen){
+          summonCore.visible=true;summonCore.position.copy(palmSmoothedWorld);
+          summonCore.scale.setScalar(.38+.75*q);summonCore.material.opacity=.4+.53*q;
+          handHalo.visible=true;handHalo.scale.setScalar(1.6+1.5*q);handHalo.material.opacity=.08+.15*q;
+        }else{handHalo.visible=false;}
+        energy+=q*.4;
+        const line=!seen?'将一只手放入镜头，张开手掌。':!interaction.armed?'先握拳或移开手掌，再重新张开。':
+          charging?'保持张掌，让灯光在掌心凝聚。':'掌心已找到，张开手掌接灯。';
+        if($('statusLine').textContent!==line)$('statusLine').textContent=line;
+      }else if(state==='DESCENDING'){
         const q=fast(e/CONFIG.DESCEND_DURATION);if(hasPalmTarget)curve.v3.lerp(above(),1-Math.exp(-dt*5));
         curve.getPoint(q,lampPosition);interactionGroup.scale.setScalar(.34+.66*q);
         energy=.23+.5*q;cometTrail.visible=true;cometTrail.rotation.z=Math.PI;
@@ -1191,7 +1246,7 @@
         controls.target.lerpVectors(resetFocus,defaultFocus,q);camera.lookAt(controls.target);
         cometTrail.visible=q<1;lampPosition.lerpVectors(start,home,q);interactionGroup.scale.setScalar(.24+.10*q);
         if(q===1){heartMix.value=0;showTime.value=-1;trailMat.uniforms.uSparkFade.value=1;
-          resetLift();palmHistory=[];openSince=closedSince=0;closedEventSent=false;
+          resetLift();clearOpen();palmHistory=[];openSince=closedSince=0;closedEventSent=false;
           interaction.armed=!handCount||displayedGesture==='CLOSED';openEventSent=!interaction.armed;
           hasPalmTarget=false;paper.scrollTop=0;camera.position.copy(defaultCamera);controls.target.copy(defaultFocus);camera.lookAt(defaultFocus);
           enter('IDLE');}
