@@ -51,6 +51,7 @@
     .debug-row span:first-child { color: rgba(219, 210, 203, .54); }
     .debug-row span:last-child { color: rgba(255, 244, 227, .92); text-align: right; }
     .debug-row .error { color: #ff927e !important; }
+    .debug-row .warn { color: #f3c774 !important; }
     #cameraVideo { position: fixed; z-index: -1; left: -10000px; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
     @media (max-width: 600px) { .eyebrow { letter-spacing: .34em; } h1 { letter-spacing: .14em; } .hint { display: none; } }
     @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
@@ -69,6 +70,8 @@
   <aside id="debugPanel" class="debug-panel" aria-live="polite">
     <div class="debug-heading"><span>Hand Tracking</span><span>LOCAL</span></div>
     <div class="debug-row"><span>Camera</span><span id="debugCamera">OFF</span></div>
+    <div class="debug-row"><span>Video</span><span id="debugVideo">WAITING</span></div>
+    <div class="debug-row"><span>Inference</span><span id="debugInference">0</span></div>
     <div class="debug-row"><span>Hands</span><span id="debugHands">0</span></div>
     <div class="debug-row"><span>Gesture</span><span id="debugGesture">NO HAND</span></div>
     <div class="debug-row"><span>Palm Position</span><span id="debugPalm">—</span></div>
@@ -235,6 +238,7 @@
     const debugPanel = document.querySelector('#debugPanel');
     const debugEls = {
       camera: document.querySelector('#debugCamera'), hands: document.querySelector('#debugHands'),
+      video: document.querySelector('#debugVideo'), inference: document.querySelector('#debugInference'),
       gesture: document.querySelector('#debugGesture'), palm: document.querySelector('#debugPalm'),
       hold: document.querySelector('#debugHold'), fps: document.querySelector('#debugFps'),
       interaction: document.querySelector('#debugInteraction')
@@ -291,6 +295,8 @@
     let fpsLastAt = performance.now();
     let currentFps = 0;
     let lastDebugUpdateAt = 0;
+    let inferenceFrames = 0;
+    let lastInferenceAt = 0;
 
     function setCameraState(state, error = '') {
       cameraState = state;
@@ -314,6 +320,13 @@
       debugEls.camera.textContent = cameraError ? `${cameraState} · ${cameraError}` : cameraState;
       debugEls.camera.classList.toggle('error', cameraState === 'ERROR');
       debugEls.hands.textContent = String(handCount);
+      const videoReady = cameraVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && cameraVideo.videoWidth > 0;
+      debugEls.video.textContent = videoReady
+        ? `${cameraVideo.paused ? 'PAUSED' : 'LIVE'} ${cameraVideo.videoWidth}×${cameraVideo.videoHeight}`
+        : `WAIT ${cameraVideo.readyState}/4`;
+      debugEls.video.classList.toggle('warn', cameraState === 'ON' && !videoReady);
+      debugEls.inference.textContent = inferenceFrames ? `${inferenceFrames} · ${lastInferenceAt ? ((performance.now() - lastInferenceAt) / 1000).toFixed(1) + 's ago' : ''}` : '0 · waiting';
+      debugEls.inference.classList.toggle('warn', cameraState === 'ON' && (!inferenceFrames || performance.now() - lastInferenceAt > 1500));
       debugEls.gesture.textContent = displayedGesture;
       debugEls.palm.textContent = hasPalmTarget ? `${palmSmoothedWorld.x.toFixed(2)}, ${palmSmoothedWorld.y.toFixed(2)}, ${palmSmoothedWorld.z.toFixed(2)}` : '—';
       debugEls.hold.textContent = `${(holdDurationMs / 1000).toFixed(1)} s`;
@@ -479,9 +492,11 @@
 
     function scheduleVideoDetection(generation) {
       if (generation !== cameraGeneration || cameraState !== 'ON') return;
-      const run = (now, metadata = null) => {
+      // Poll on its own animation callback and gate on currentTime. This works even when
+      // the muted video is off-screen; requestVideoFrameCallback may be compositor-throttled there.
+      const run = (now) => {
         if (generation !== cameraGeneration || cameraState !== 'ON') return;
-        const videoTime = metadata?.mediaTime ?? cameraVideo.currentTime;
+        const videoTime = cameraVideo.currentTime;
         if (cameraVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && videoTime !== lastVideoTime && now - lastDetectionAt >= CONFIG.handDetectionIntervalMs) {
           lastVideoTime = videoTime;
           lastDetectionAt = now;
@@ -489,6 +504,8 @@
             const timestamp = Math.max(now, lastTimestampMs + 1);
             lastTimestampMs = timestamp;
             const result = handLandmarker.detectForVideo(cameraVideo, timestamp);
+            inferenceFrames++;
+            lastInferenceAt = now;
             processHandResult(result, now);
           } catch (error) {
             console.error('Hand detection failed:', error);
@@ -496,11 +513,9 @@
             return;
           }
         }
-        if (cameraVideo.requestVideoFrameCallback) cameraFrameHandle = cameraVideo.requestVideoFrameCallback(run);
-        else cameraFrameHandle = requestAnimationFrame((frameTime) => run(frameTime));
+        cameraFrameHandle = requestAnimationFrame(run);
       };
-      if (cameraVideo.requestVideoFrameCallback) cameraFrameHandle = cameraVideo.requestVideoFrameCallback(run);
-      else cameraFrameHandle = requestAnimationFrame((frameTime) => run(frameTime));
+      cameraFrameHandle = requestAnimationFrame(run);
     }
 
     async function enableCamera() {
@@ -546,6 +561,7 @@
         }
         if (generation !== cameraGeneration) { handLandmarker.close(); handLandmarker = null; return; }
         lastVideoTime = -1; lastDetectionAt = 0; lastTimestampMs = 0;
+        inferenceFrames = 0; lastInferenceAt = 0;
         lastHandSeenAt = 0; lastHandTargetAt = 0; handLostSent = false;
         palmHistory = []; handCount = 0; displayedGesture = 'NO HAND'; stableGesture = 'UNKNOWN';
         setCameraState('ON'); setInteractionState('READY');
