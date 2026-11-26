@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050810" />
+  <title>LANTERNS OF GRATITUDE</title>
+  <style>
+    :root { color-scheme: dark; --gold: #f7c879; --muted: #c8bbac; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #050810; }
+    body {
+      background:
+        radial-gradient(ellipse at 50% 42%, rgba(35, 30, 72, .58) 0%, rgba(14, 17, 43, .40) 32%, rgba(5, 8, 16, .12) 69%),
+        radial-gradient(ellipse at 50% 100%, #101024 0%, #080b18 43%, #050810 78%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fff8ec;
+    }
+    #stage { position: fixed; inset: 0; }
+    canvas { display: block; width: 100%; height: 100%; outline: none; }
+    .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2; background: radial-gradient(ellipse at center, transparent 45%, rgba(2, 3, 11, .18) 75%, rgba(1, 2, 8, .58) 120%); }
+    .title {
+      position: fixed; z-index: 3; top: clamp(22px, 5.4vh, 56px); left: 50%; transform: translateX(-50%);
+      width: min(94vw, 720px); text-align: center; pointer-events: none;
+      text-shadow: 0 0 28px rgba(255, 182, 91, .18);
+    }
+    .eyebrow { margin: 0 0 12px; color: rgba(255, 224, 178, .74); font-size: 9px; letter-spacing: .48em; text-transform: uppercase; }
+    h1 { margin: 0; font-family: "Times New Roman", Georgia, serif; font-weight: 400; font-size: clamp(23px, 4vw, 42px); letter-spacing: .22em; line-height: 1.15; }
+    .subtitle { margin: 12px auto 0; color: rgba(234, 221, 209, .62); font-family: Georgia, serif; font-size: clamp(11px, 1.4vw, 14px); font-style: italic; letter-spacing: .1em; }
+    .footer { position: fixed; z-index: 3; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(92vw, 680px); text-align: center; pointer-events: none; }
+    .footer p { margin: 0; color: rgba(231, 219, 210, .60); font-size: 10px; letter-spacing: .24em; text-transform: uppercase; }
+    .footer .rule { height: 1px; width: 42px; margin: 0 auto 13px; background: linear-gradient(90deg, transparent, rgba(248, 197, 120, .62), transparent); }
+    .hint { position: fixed; z-index: 3; right: 23px; bottom: 23px; color: rgba(232, 219, 206, .36); font-size: 9px; letter-spacing: .14em; pointer-events: none; }
+    .camera-toggle {
+      position: fixed; z-index: 6; top: max(22px, env(safe-area-inset-top)); right: max(24px, env(safe-area-inset-right));
+      padding: 11px 15px; border: 1px solid rgba(248, 207, 145, .38); border-radius: 999px;
+      background: rgba(9, 11, 25, .42); color: rgba(255, 239, 213, .88); backdrop-filter: blur(12px);
+      font: 9px/1 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .18em; text-transform: uppercase;
+      cursor: pointer; transition: background .2s ease, border-color .2s ease, opacity .2s ease;
+    }
+    .camera-toggle:hover { background: rgba(38, 30, 44, .7); border-color: rgba(255, 222, 164, .72); }
+    .camera-toggle:disabled { cursor: wait; opacity: .58; }
+    .debug-panel {
+      position: fixed; z-index: 5; top: 20px; left: 20px; width: min(260px, calc(100vw - 40px));
+      padding: 13px 15px 14px; border: 1px solid rgba(245, 205, 141, .18); border-radius: 10px;
+      background: rgba(5, 8, 18, .52); backdrop-filter: blur(12px); color: rgba(246, 231, 211, .8);
+      font: 10px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .035em;
+    }
+    .debug-heading { display: flex; justify-content: space-between; margin-bottom: 6px; color: rgba(248, 202, 128, .84); font: 9px/1.4 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
+    .debug-row { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
+    .debug-row span:first-child { color: rgba(219, 210, 203, .54); }
+    .debug-row span:last-child { color: rgba(255, 244, 227, .92); text-align: right; }
+    .debug-row .error { color: #ff927e !important; }
+    #cameraVideo { position: fixed; z-index: -1; left: -10000px; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+    @media (max-width: 600px) { .eyebrow { letter-spacing: .34em; } h1 { letter-spacing: .14em; } .hint { display: none; } }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div id="stage" aria-label="A field of glowing gratitude lanterns drifting through a night sky"></div>
+  <header class="title">
+    <p class="eyebrow">A gathering of light · Thanksgiving</p>
+    <h1>LANTERNS OF GRATITUDE</h1>
+    <p class="subtitle">For all that warms the heart, and all that carries us forward.</p>
+  </header>
+  <div class="footer"><div class="rule"></div><p>May every grateful thought find its way home</p></div>
+  <div class="hint">DRAG TO EXPLORE</div>
+  <button id="cameraToggle" class="camera-toggle" type="button" aria-pressed="false">Enable Camera</button>
+  <aside id="debugPanel" class="debug-panel" aria-live="polite">
+    <div class="debug-heading"><span>Hand Tracking</span><span>LOCAL</span></div>
+    <div class="debug-row"><span>Camera</span><span id="debugCamera">OFF</span></div>
+    <div class="debug-row"><span>Hands</span><span id="debugHands">0</span></div>
+    <div class="debug-row"><span>Gesture</span><span id="debugGesture">NO HAND</span></div>
+    <div class="debug-row"><span>Palm Position</span><span id="debugPalm">—</span></div>
+    <div class="debug-row"><span>Hold Time</span><span id="debugHold">0.0 s</span></div>
+    <div class="debug-row"><span>FPS</span><span id="debugFps">—</span></div>
+    <div class="debug-row"><span>Interaction</span><span id="debugInteraction">IDLE</span></div>
+  </aside>
+  <video id="cameraVideo" autoplay muted playsinline></video>
+  <div class="vignette"></div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+
+    // Central art-direction and performance controls. Lower qualityScale for slower devices.
+    const CONFIG = {
+      mainLanternParticles: 36000,
+      backgroundLanterns: 76,
+      backgroundParticlesPerLantern: [220, 760],
+      environmentParticles: 24000,
+      mainLanternHeight: 8.2,
+      mainLanternWidth: 4.9,
+      particleSize: 1.0,
+      environmentParticleSize: 0.75,
+      colors: {
+        night: '#050810', flame: '#FFF5D6', brightGold: '#FFE09A',
+        amber: '#FFB347', candle: '#FF9F43', outer: '#FF8533', champagne: '#FBC96B',
+        topOrange: '#D96A32', maple: '#B94A32', highlight: '#FFF8E7'
+      },
+      floatSpeed: 0.34,
+      autoRotateSpeed: 0.055,
+      bloomStrength: 0.82,
+      bloomRadius: 0.72,
+      bloomThreshold: 0.16,
+      qualityScale: 1,
+      maxPixelRatio: 1.8,
+      backgroundDepth: [24, 94],
+      starFieldRadius: 92,
+      DEBUG: true,
+      handDetectionIntervalMs: 70,
+      gestureStabilityMs: 160,
+      openHoldMs: 800,
+      handLossGraceMs: 260,
+      handLostEventMs: 1500,
+      handExitRearmMs: 600,
+      positionSmoothing: 10
+    };
+
+    const stage = document.querySelector('#stage');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x090b1c, 0.0042);
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 260);
+    camera.position.set(0, 5.0, 29);
+    camera.lookAt(0, 3.0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.maxPixelRatio) * CONFIG.qualityScale);
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.setClearColor(0x050810, 0);
+    stage.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 3.0, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.035;
+    controls.enablePan = false;
+    controls.minDistance = 23;
+    controls.maxDistance = 43;
+    controls.minPolarAngle = Math.PI * 0.27;
+    controls.maxPolarAngle = Math.PI * 0.62;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = CONFIG.autoRotateSpeed;
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), CONFIG.bloomStrength, CONFIG.bloomRadius, CONFIG.bloomThreshold);
+    bloom.strength = CONFIG.bloomStrength;
+    bloom.radius = CONFIG.bloomRadius;
+    bloom.threshold = CONFIG.bloomThreshold;
+    composer.addPass(bloom);
+
+    const vertexShader = `
+      uniform float uTime;
+      uniform float uPixelRatio;
+      uniform float uSize;
+      uniform vec3 uHandPos;
+      attribute float aRandom;
+      attribute float aSize;
+      attribute float aPhase;
+      attribute float aLayer;
+      attribute float aSpeed;
+      attribute vec3 aColor;
+      varying vec3 vColor;
+      varying float vAlpha;
+      varying float vRandom;
+      varying float vLayer;
+      varying float vHeight;
+      void main() {
+        vec3 p = position;
+        float t = uTime;
+        float phase = aPhase + aRandom * 6.28318;
+        float energy = 0.5 + 0.5 * sin(t * 1.35 - p.y * 1.25 + phase * 0.17);
+        float slowWave = sin(t * 0.47 + p.y * 0.66 + phase) * 0.075;
+        float fineWave = sin(t * 1.17 + p.x * 1.9 + p.z * 1.4 + phase) * 0.035;
+        float breath = sin(t * 1.1 + phase * 0.5) * 0.045;
+        float sway = sin(t * 0.33 + p.y * 0.24) * 0.12;
+        p.x += sway + slowWave + fineWave;
+        p.z += cos(t * 0.31 + p.y * 0.3) * 0.085 + sin(t * 0.8 + phase) * 0.035;
+        p.y += sin(t * (0.45 + aSpeed * 0.35) + phase) * (0.045 + 0.04 * aRandom) + breath;
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        float perspective = 82.0 / max(1.0, -mvPosition.z);
+        float shimmer = 0.84 + 0.16 * sin(t * (1.4 + aSpeed) + phase);
+        gl_PointSize = clamp(aSize * uSize * uPixelRatio * perspective * shimmer, 0.7, 17.0);
+        vColor = aColor * (0.75 + 0.42 * energy);
+        if (aRandom > 0.985) vColor = mix(vColor, vec3(1.0, 0.96, 0.83), 0.68);
+        vAlpha = (0.62 + 0.32 * energy) * (0.76 + 0.24 * sin(t * 1.9 + phase));
+        vRandom = aRandom;
+        vLayer = aLayer;
+        vHeight = p.y;
+      }
+    `;
+    const fragmentShader = `
+      varying vec3 vColor;
+      varying float vAlpha;
+      varying float vRandom;
+      varying float vLayer;
+      varying float vHeight;
+      void main() {
+        vec2 uv = gl_PointCoord - 0.5;
+        float r = length(uv) * 2.0;
+        float core = exp(-r * r * 17.0);
+        float halo = exp(-r * r * 5.4);
+        float softEdge = smoothstep(1.0, 0.12, r);
+        float sparkle = 0.84 + 0.16 * sin(vRandom * 437.0 + vHeight * 19.0);
+        float layerGain = mix(0.78, 1.5, clamp(vLayer, 0.0, 1.0));
+        float alpha = (core * 0.88 + halo * 0.34) * softEdge * vAlpha * sparkle * layerGain;
+        if (alpha < 0.012) discard;
+        vec3 color = vColor * (0.68 + core * 1.7);
+        gl_FragColor = vec4(color, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `;
+    const particleMaterial = (size, opacity = 1) => new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() }, uSize: { value: size }, uHandPos: { value: new THREE.Vector3() } },
+      vertexShader, fragmentShader, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, opacity, toneMapped: true
+    });
+
+    // Camera and hand-tracking state. Detection runs from decoded video-frame callbacks,
+    // independently from the Three.js render loop; all inference stays in this browser tab.
+    const cameraToggle = document.querySelector('#cameraToggle');
+    const cameraVideo = document.querySelector('#cameraVideo');
+    const debugPanel = document.querySelector('#debugPanel');
+    const debugEls = {
+      camera: document.querySelector('#debugCamera'), hands: document.querySelector('#debugHands'),
+      gesture: document.querySelector('#debugGesture'), palm: document.querySelector('#debugPalm'),
+      hold: document.querySelector('#debugHold'), fps: document.querySelector('#debugFps'),
+      interaction: document.querySelector('#debugInteraction')
+    };
+    debugPanel.hidden = !CONFIG.DEBUG;
+    let cameraState = 'OFF';
+    let cameraError = '';
+    let cameraStream = null;
+    let handLandmarker = null;
+    let cameraGeneration = 0;
+    let cameraFrameHandle = null;
+    let lastVideoTime = -1;
+    let lastDetectionAt = 0;
+    let lastTimestampMs = 0;
+    let handCount = 0;
+    let displayedGesture = 'NO HAND';
+    let candidateGesture = 'UNKNOWN';
+    let candidateGestureAt = 0;
+    let stableGesture = 'UNKNOWN';
+    let openSince = 0;
+    let openEventSent = false;
+    let handLostSent = false;
+    let lastHandSeenAt = 0;
+    let lastHandTargetAt = 0;
+    let lastInteractionEventAt = 0;
+    let interactionState = 'IDLE';
+    let lastNormalizedPalm = null;
+    let lastPalmTarget = new THREE.Vector3();
+    let hasPalmTarget = false;
+    let palmHistory = [];
+    const palmTargetWorld = new THREE.Vector3();
+    const palmSmoothedWorld = new THREE.Vector3();
+    const handMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.105, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffdc91, transparent: true, opacity: 0.94, blending: THREE.AdditiveBlending })
+    );
+    handMarker.visible = false;
+    scene.add(handMarker);
+    const handHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffba59, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    handHalo.visible = false;
+    scene.add(handHalo);
+    const raycaster = new THREE.Raycaster();
+    const interactionPlane = new THREE.Plane();
+    const interactionPlaneNormal = new THREE.Vector3();
+    const interactionPlanePoint = new THREE.Vector3();
+    const rayHit = new THREE.Vector3();
+    const tempPalm = new THREE.Vector3();
+    const lastFramePalm = new THREE.Vector3();
+    let holdDurationMs = 0;
+    let fpsFrames = 0;
+    let fpsLastAt = performance.now();
+    let currentFps = 0;
+    let lastDebugUpdateAt = 0;
+
+    function setCameraState(state, error = '') {
+      cameraState = state;
+      cameraError = error;
+      cameraToggle.setAttribute('aria-pressed', String(state === 'ON' || state === 'LOADING'));
+      cameraToggle.textContent = state === 'ON' ? 'Disable Camera' : state === 'LOADING' ? 'Loading…' : 'Enable Camera';
+      cameraToggle.disabled = state === 'LOADING';
+      debugEls.camera.textContent = error ? `${state}: ${error}` : state;
+      debugEls.camera.classList.toggle('error', state === 'ERROR');
+      updateDebug();
+    }
+    function setInteractionState(state) {
+      interactionState = state;
+      if (CONFIG.DEBUG) debugEls.interaction.textContent = state;
+    }
+    function updateDebug() {
+      if (!CONFIG.DEBUG) return;
+      const now = performance.now();
+      if (now - lastDebugUpdateAt < 90) return;
+      lastDebugUpdateAt = now;
+      debugEls.camera.textContent = cameraError ? `${cameraState} · ${cameraError}` : cameraState;
+      debugEls.camera.classList.toggle('error', cameraState === 'ERROR');
+      debugEls.hands.textContent = String(handCount);
+      debugEls.gesture.textContent = displayedGesture;
+      debugEls.palm.textContent = hasPalmTarget ? `${palmSmoothedWorld.x.toFixed(2)}, ${palmSmoothedWorld.y.toFixed(2)}, ${palmSmoothedWorld.z.toFixed(2)}` : '—';
+      debugEls.hold.textContent = `${(holdDurationMs / 1000).toFixed(1)} s`;
+      debugEls.fps.textContent = currentFps ? String(currentFps) : '—';
+      debugEls.interaction.textContent = interactionState;
+    }
+
+    function emitInteraction(name, detail = {}) {
+      const now = performance.now();
+      if (name !== 'PALM_OPEN' && name !== 'PALM_CLOSED' && now - lastInteractionEventAt < 420) return;
+      lastInteractionEventAt = now;
+      setInteractionState(name);
+      window.dispatchEvent(new CustomEvent(name, { detail: { ...detail, at: now, palmWorld: palmSmoothedWorld.clone() } }));
+    }
+
+    function distance3(a, b) {
+      const dx = a.x - b.x, dy = a.y - b.y, dz = (a.z || 0) - (b.z || 0);
+      return Math.hypot(dx, dy, dz);
+    }
+    function jointAngleDegrees(a, b, c) {
+      const ab = { x: a.x - b.x, y: a.y - b.y, z: (a.z || 0) - (b.z || 0) };
+      const cb = { x: c.x - b.x, y: c.y - b.y, z: (c.z || 0) - (b.z || 0) };
+      const denom = Math.hypot(ab.x, ab.y, ab.z) * Math.hypot(cb.x, cb.y, cb.z);
+      if (denom < 1e-6) return 0;
+      const cosine = THREE.MathUtils.clamp((ab.x * cb.x + ab.y * cb.y + ab.z * cb.z) / denom, -1, 1);
+      return Math.acos(cosine) * 180 / Math.PI;
+    }
+    function classifyHand(landmarks) {
+      const palmIds = [0, 5, 9, 13, 17];
+      const palm = palmIds.reduce((sum, id) => ({ x: sum.x + landmarks[id].x / palmIds.length, y: sum.y + landmarks[id].y / palmIds.length, z: sum.z + landmarks[id].z / palmIds.length }), { x: 0, y: 0, z: 0 });
+      const palmWidth = distance3(landmarks[5], landmarks[17]);
+      const wristToMcp = distance3(landmarks[0], landmarks[9]);
+      const handScale = Math.max(palmWidth * 0.72, wristToMcp * 0.86, 1e-4);
+      const fingers = [[5, 6, 8], [9, 10, 12], [13, 14, 16], [17, 18, 20]];
+      let extended = 0, curled = 0;
+      for (const [base, pip, tip] of fingers) {
+        const angle = jointAngleDegrees(landmarks[base], landmarks[pip], landmarks[tip]);
+        const reach = distance3(landmarks[tip], palm) / handScale;
+        if (angle >= 145 && reach >= 1.28) extended++;
+        else if (angle <= 128 || reach <= 1.02) curled++;
+      }
+      const gesture = extended === 4 ? 'OPEN' : curled >= 3 ? 'CLOSED' : 'UNKNOWN';
+      return { gesture, palm };
+    }
+
+    function mapPalmToWorld(palm) {
+      // MediaPipe sees the raw, unmirrored camera image. Mirror X to match a selfie preview,
+      // then account for the centered cover-crop between the camera and canvas aspect ratios.
+      let displayX = 1 - palm.x;
+      let displayY = palm.y;
+      const videoAspect = cameraVideo.videoWidth / cameraVideo.videoHeight;
+      const canvasAspect = renderer.domElement.clientWidth / renderer.domElement.clientHeight;
+      if (Number.isFinite(videoAspect) && videoAspect > 0) {
+        if (videoAspect > canvasAspect) {
+          const visibleWidth = canvasAspect / videoAspect;
+          displayX = (displayX - (1 - visibleWidth) * 0.5) / visibleWidth;
+        } else {
+          const visibleHeight = videoAspect / canvasAspect;
+          displayY = (displayY - (1 - visibleHeight) * 0.5) / visibleHeight;
+        }
+      }
+      const ndcX = THREE.MathUtils.clamp(displayX, 0, 1) * 2 - 1;
+      const ndcY = 1 - THREE.MathUtils.clamp(displayY, 0, 1) * 2;
+      camera.updateMatrixWorld();
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+      camera.getWorldDirection(interactionPlaneNormal);
+      interactionPlanePoint.copy(camera.position).addScaledVector(interactionPlaneNormal, 18);
+      interactionPlane.setFromNormalAndCoplanarPoint(interactionPlaneNormal, interactionPlanePoint);
+      if (!raycaster.ray.intersectPlane(interactionPlane, rayHit)) return null;
+      return { world: rayHit.clone(), screen: { x: displayX, y: displayY } };
+    }
+
+    function processPalmMotion(screen, world, now) {
+      palmHistory.push({ x: screen.x, y: screen.y, world: world.clone(), at: now });
+      while (palmHistory.length && now - palmHistory[0].at > 900) palmHistory.shift();
+      const baseline = palmHistory.find((sample) => now - sample.at >= 260) || palmHistory[0];
+      if (!baseline || now - baseline.at < 180) return;
+      const duration = (now - baseline.at) / 1000;
+      const dx = screen.x - baseline.x;
+      const dy = screen.y - baseline.y;
+      const speed = Math.hypot(dx, dy) / Math.max(duration, 0.01);
+      if (speed > 0.42 && Math.abs(dx) > 0.15) emitInteraction(dx < 0 ? 'PALM_SWIPE_LEFT' : 'PALM_SWIPE_RIGHT', { dx, dy, speed });
+      else if (speed > 0.34 && dy < -0.12) emitInteraction('PALM_UP', { dx, dy, speed });
+    }
+
+    function applyStableGesture(nextGesture, now, palm) {
+      if (nextGesture === stableGesture) return;
+      stableGesture = nextGesture;
+      if (nextGesture === 'OPEN') {
+        openSince = now;
+        openEventSent = false;
+        setInteractionState('OPEN HOLD');
+      } else if (nextGesture === 'CLOSED') {
+        openSince = 0;
+        openEventSent = false;
+        handLostSent = false;
+        emitInteraction('PALM_CLOSED', { palm });
+      } else {
+        openSince = 0;
+        if (nextGesture === 'UNKNOWN') setInteractionState('UNCERTAIN');
+      }
+    }
+
+    function processHandResult(result, now) {
+      const hands = result.landmarks || [];
+      handCount = hands.length;
+      if (!hands.length) {
+        displayedGesture = 'NO HAND';
+        candidateGesture = 'NO HAND'; candidateGestureAt = now;
+        holdDurationMs = 0;
+        openSince = 0;
+        if (lastHandSeenAt && now - lastHandSeenAt >= CONFIG.handExitRearmMs) {
+          openEventSent = false;
+          stableGesture = 'NO HAND';
+          palmHistory = [];
+        }
+        if (lastHandSeenAt && now - lastHandSeenAt >= CONFIG.handLostEventMs && !handLostSent) {
+          handLostSent = true; openSince = 0; openEventSent = false; stableGesture = 'NO HAND';
+          emitInteraction('HAND_LOST', {});
+        }
+        if (lastHandTargetAt && now - lastHandTargetAt > CONFIG.handLossGraceMs) {
+          handMarker.visible = false; handHalo.visible = false;
+          hasPalmTarget = false;
+        }
+        if (!handLostSent && (!lastHandSeenAt || now - lastHandSeenAt < CONFIG.handLostEventMs)) setInteractionState('WAITING FOR HAND');
+        updateDebug();
+        return;
+      }
+
+      handLostSent = false;
+      lastHandSeenAt = now;
+      const { gesture, palm } = classifyHand(hands[0]);
+      displayedGesture = gesture;
+      if (gesture !== candidateGesture) { candidateGesture = gesture; candidateGestureAt = now; }
+      else if (now - candidateGestureAt >= CONFIG.gestureStabilityMs) applyStableGesture(gesture, now, palm);
+      if (gesture === 'OPEN' && stableGesture === 'OPEN' && !openSince) openSince = now;
+
+      const mapped = mapPalmToWorld(palm);
+      if (mapped) {
+        palmTargetWorld.copy(mapped.world);
+        if (!hasPalmTarget) palmSmoothedWorld.copy(mapped.world);
+        hasPalmTarget = true;
+        lastHandTargetAt = now;
+        lastNormalizedPalm = mapped.screen;
+        processPalmMotion(mapped.screen, mapped.world, now);
+        handMarker.visible = CONFIG.DEBUG;
+        handHalo.visible = CONFIG.DEBUG;
+      }
+
+      if (stableGesture === 'OPEN' && openSince) {
+        holdDurationMs = now - openSince;
+        if (holdDurationMs >= CONFIG.openHoldMs && !openEventSent) {
+          openEventSent = true;
+          emitInteraction('PALM_OPEN', { palm, heldMs: holdDurationMs });
+        } else if (!openEventSent) setInteractionState('OPEN HOLD');
+      } else if (stableGesture === 'CLOSED') {
+        holdDurationMs = 0;
+      } else {
+        holdDurationMs = 0;
+      }
+      updateDebug();
+    }
+
+    function scheduleVideoDetection(generation) {
+      if (generation !== cameraGeneration || cameraState !== 'ON') return;
+      const run = (now, metadata = null) => {
+        if (generation !== cameraGeneration || cameraState !== 'ON') return;
+        const videoTime = metadata?.mediaTime ?? cameraVideo.currentTime;
+        if (cameraVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && videoTime !== lastVideoTime && now - lastDetectionAt >= CONFIG.handDetectionIntervalMs) {
+          lastVideoTime = videoTime;
+          lastDetectionAt = now;
+          try {
+            const timestamp = Math.max(now, lastTimestampMs + 1);
+            lastTimestampMs = timestamp;
+            const result = handLandmarker.detectForVideo(cameraVideo, timestamp);
+            processHandResult(result, now);
+          } catch (error) {
+            console.error('Hand detection failed:', error);
+            stopCamera('ERROR', 'DETECTION FAILED');
+            return;
+          }
+        }
+        if (cameraVideo.requestVideoFrameCallback) cameraFrameHandle = cameraVideo.requestVideoFrameCallback(run);
+        else cameraFrameHandle = requestAnimationFrame((frameTime) => run(frameTime));
+      };
+      if (cameraVideo.requestVideoFrameCallback) cameraFrameHandle = cameraVideo.requestVideoFrameCallback(run);
+      else cameraFrameHandle = requestAnimationFrame((frameTime) => run(frameTime));
+    }
+
+    async function enableCamera() {
+      if (cameraState === 'ON' || cameraState === 'LOADING') return;
+      const generation = ++cameraGeneration;
+      setCameraState('LOADING');
+      setInteractionState('INITIALIZING CAMERA');
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('CAMERA API UNAVAILABLE');
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } }
+        });
+        if (generation !== cameraGeneration) { cameraStream.getTracks().forEach((track) => track.stop()); return; }
+        cameraStream.getVideoTracks().forEach((track) => {
+          track.addEventListener('ended', () => {
+            if (generation === cameraGeneration) stopCamera('ERROR', 'CAMERA DISCONNECTED');
+          }, { once: true });
+        });
+        cameraVideo.srcObject = cameraStream;
+        await cameraVideo.play();
+        setInteractionState('LOADING HAND MODEL');
+        const { FilesetResolver, HandLandmarker } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs');
+        const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm');
+        if (generation !== cameraGeneration) return;
+        const modelOptions = {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numHands: 2,
+          minHandDetectionConfidence: 0.55,
+          minHandPresenceConfidence: 0.55,
+          minTrackingConfidence: 0.5
+        };
+        try {
+          handLandmarker = await HandLandmarker.createFromOptions(vision, modelOptions);
+        } catch (gpuError) {
+          console.warn('GPU delegate unavailable; retrying MediaPipe on CPU.', gpuError);
+          modelOptions.baseOptions.delegate = 'CPU';
+          handLandmarker = await HandLandmarker.createFromOptions(vision, modelOptions);
+        }
+        if (generation !== cameraGeneration) { handLandmarker.close(); handLandmarker = null; return; }
+        lastVideoTime = -1; lastDetectionAt = 0; lastTimestampMs = 0;
+        lastHandSeenAt = 0; lastHandTargetAt = 0; handLostSent = false;
+        palmHistory = []; handCount = 0; displayedGesture = 'NO HAND'; stableGesture = 'UNKNOWN';
+        setCameraState('ON'); setInteractionState('READY');
+        scheduleVideoDetection(generation);
+      } catch (error) {
+        console.error('Camera/MediaPipe initialization failed:', error);
+        const message = error?.name === 'NotAllowedError' ? 'PERMISSION DENIED'
+          : error?.name === 'NotFoundError' ? 'NO CAMERA FOUND'
+          : error?.name === 'NotReadableError' ? 'CAMERA IN USE'
+          : error?.message?.includes('CAMERA API') ? error.message
+          : 'MODEL LOAD FAILED';
+        stopCamera('ERROR', message);
+      }
+    }
+
+    function stopCamera(finalState = 'OFF', error = '') {
+      cameraGeneration++;
+      if (cameraFrameHandle !== null) {
+        if (cameraVideo.cancelVideoFrameCallback) cameraVideo.cancelVideoFrameCallback(cameraFrameHandle);
+        cancelAnimationFrame(cameraFrameHandle);
+        cameraFrameHandle = null;
+      }
+      if (cameraStream) { cameraStream.getTracks().forEach((track) => track.stop()); cameraStream = null; }
+      cameraVideo.pause(); cameraVideo.srcObject = null;
+      if (handLandmarker) { try { handLandmarker.close(); } catch (e) { console.warn(e); } handLandmarker = null; }
+      handCount = 0; displayedGesture = 'NO HAND'; stableGesture = 'UNKNOWN'; candidateGesture = 'UNKNOWN';
+      openSince = 0; openEventSent = false; holdDurationMs = 0; palmHistory = [];
+      handMarker.visible = false; handHalo.visible = false; hasPalmTarget = false;
+      setCameraState(finalState, error);
+      setInteractionState(finalState === 'ERROR' ? 'CAMERA ERROR' : 'IDLE');
+      updateDebug();
+    }
+
+    cameraToggle.addEventListener('click', () => {
+      if (cameraState === 'ON') stopCamera('OFF');
+      else enableCamera();
+    });
+    window.addEventListener('pagehide', () => stopCamera('OFF'));
+
+    const rgb = (hex) => new THREE.Color(hex);
+    const palette = [
+      rgb(CONFIG.colors.flame), rgb(CONFIG.colors.brightGold), rgb(CONFIG.colors.amber), rgb(CONFIG.colors.candle),
+      rgb(CONFIG.colors.outer), rgb(CONFIG.colors.champagne), rgb(CONFIG.colors.topOrange), rgb(CONFIG.colors.maple), rgb(CONFIG.colors.highlight)
+    ];
+    const mixPalette = (height, radius, rand, role) => {
+      let c;
+      if (role === 'flame') c = palette[0].clone().lerp(palette[1], rand * 0.48);
+      else if (height > 0.76) c = palette[6].clone().lerp(palette[7], rand * 0.52).lerp(palette[5], 0.14 + rand * 0.22);
+      else if (role === 'inner') c = palette[2].clone().lerp(palette[3], rand * 0.48).lerp(palette[1], (1 - radius) * 0.22);
+      else c = palette[4].clone().lerp(palette[5], rand * 0.55).lerp(palette[2], Math.max(0, 0.35 - height) * 0.3);
+      if (rand > 0.988) c.lerp(palette[8], 0.74);
+      return c;
+    };
+    const lanternY = CONFIG.mainLanternHeight;
+    const lanternW = CONFIG.mainLanternWidth;
+    const lanternH = 7.5;
+    const lanternR = lanternW * 0.5;
+    const pos = new Float32Array(CONFIG.mainLanternParticles * 3);
+    const colors = new Float32Array(CONFIG.mainLanternParticles * 3);
+    const sizes = new Float32Array(CONFIG.mainLanternParticles);
+    const randoms = new Float32Array(CONFIG.mainLanternParticles);
+    const phases = new Float32Array(CONFIG.mainLanternParticles);
+    const layers = new Float32Array(CONFIG.mainLanternParticles);
+    const speeds = new Float32Array(CONFIG.mainLanternParticles);
+    const rand = Math.random;
+    const radiusAt = (h) => lanternR * (0.82 + 0.18 * Math.sin(Math.PI * Math.pow(h, 0.82)));
+
+    for (let i = 0; i < CONFIG.mainLanternParticles; i++) {
+      const k = i * 3;
+      const r0 = rand();
+      const phase = rand() * Math.PI * 2;
+      const choice = rand();
+      let x, y, z, role, layer;
+      if (choice < 0.58) { // dense outer paper shell
+        const h = rand();
+        const a = rand() * Math.PI * 2;
+        const radius = radiusAt(h) * (0.986 + rand() * 0.035);
+        x = Math.cos(a) * radius; z = Math.sin(a) * radius;
+        y = h * lanternH - lanternH * 0.5;
+        role = 'shell'; layer = 0.54 + rand() * 0.18;
+      } else if (choice < 0.83) { // translucent inner volume
+        const h = rand();
+        const a = rand() * Math.PI * 2;
+        const rr = Math.sqrt(rand()) * radiusAt(h) * 0.88;
+        x = Math.cos(a) * rr; z = Math.sin(a) * rr;
+        y = h * lanternH - lanternH * 0.5;
+        role = 'inner'; layer = 0.44 + rand() * 0.3;
+      } else if (choice < 0.96) { // strong top, bottom and vertical seams
+        const seam = rand();
+        const a = rand() < 0.62 ? Math.floor(rand() * 8) * Math.PI / 4 : rand() * Math.PI * 2;
+        const h = seam < 0.34 ? (rand() < 0.5 ? rand() * 0.035 : 0.965 + rand() * 0.035) : rand();
+        const radius = radiusAt(h) * (0.99 + rand() * 0.012);
+        x = Math.cos(a) * radius; z = Math.sin(a) * radius;
+        y = h * lanternH - lanternH * 0.5;
+        role = 'rim'; layer = 0.88 + rand() * 0.12;
+      } else { // living flame beneath the open base
+        const h = rand();
+        const rr = Math.pow(rand(), 1.8) * lanternR * 0.31;
+        const a = rand() * Math.PI * 2;
+        x = Math.cos(a) * rr; z = Math.sin(a) * rr;
+        y = -lanternH * 0.5 - 0.12 + h * 1.18;
+        role = 'flame'; layer = 1;
+      }
+      pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
+      randoms[i] = r0; phases[i] = phase; layers[i] = layer; speeds[i] = 0.25 + rand() * 1.6;
+      const heightFactor = THREE.MathUtils.clamp((y + lanternH * 0.5) / lanternH, 0, 1);
+      const radiusFactor = Math.hypot(x, z) / lanternR;
+      const color = mixPalette(heightFactor, radiusFactor, r0, role);
+      colors[k] = color.r; colors[k + 1] = color.g; colors[k + 2] = color.b;
+      sizes[i] = role === 'flame' ? 1.15 + rand() * 2.15 : role === 'rim' ? 0.72 + rand() * 1.15 : 0.48 + rand() * 1.03;
+    }
+    const mainGeo = new THREE.BufferGeometry();
+    mainGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    mainGeo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    mainGeo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    mainGeo.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
+    mainGeo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+    mainGeo.setAttribute('aLayer', new THREE.BufferAttribute(layers, 1));
+    mainGeo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+    const mainLantern = new THREE.Points(mainGeo, particleMaterial(CONFIG.particleSize * 1.72));
+    mainLantern.position.set(0, lanternY, -1.5);
+    mainLantern.frustumCulled = false;
+    scene.add(mainLantern);
+
+    // Build many lanterns into one draw call; per-particle anchors keep each lantern independently drifting.
+    const bgCount = CONFIG.backgroundLanterns;
+    const bgPositions = [], bgColors = [], bgSizes = [], bgRandoms = [], bgPhases = [], bgLayers = [], bgSpeeds = [], bgCenters = [], bgScales = [], bgYaw = [], bgLift = [];
+    for (let b = 0; b < bgCount; b++) {
+      const depth = THREE.MathUtils.lerp(CONFIG.backgroundDepth[0], CONFIG.backgroundDepth[1], rand());
+      const spread = depth * 0.58;
+      const center = new THREE.Vector3((rand() - 0.5) * spread * 1.85, -5 + rand() * 25, -depth);
+      const scale = THREE.MathUtils.lerp(0.25, 0.75, rand()) * (28 / depth);
+      const yaw = rand() * Math.PI * 2;
+      const count = Math.round(THREE.MathUtils.lerp(CONFIG.backgroundParticlesPerLantern[0], CONFIG.backgroundParticlesPerLantern[1], rand()));
+      for (let j = 0; j < count; j++) {
+        const h = rand(), a = rand() * Math.PI * 2;
+        const shell = rand() < 0.72;
+        const radius = (0.34 + 0.17 * Math.sin(Math.PI * h)) * (shell ? 0.96 + rand() * 0.06 : Math.sqrt(rand()) * 0.86);
+        bgPositions.push(Math.cos(a) * radius, (h - 0.5) * 0.58, Math.sin(a) * radius);
+        bgCenters.push(center.x, center.y, center.z);
+        bgScales.push(scale); bgYaw.push(yaw); bgLift.push(0.04 + rand() * 0.13);
+        const c = mixPalette(h, radius / 0.5, rand(), shell ? 'shell' : 'inner').multiplyScalar(0.78);
+        bgColors.push(c.r, c.g, c.b);
+        bgSizes.push(0.36 + rand() * 0.68); bgRandoms.push(rand()); bgPhases.push(rand() * 6.283); bgLayers.push(0.42 + rand() * 0.35); bgSpeeds.push(0.1 + rand() * 0.48);
+      }
+    }
+    const bgGeo = new THREE.BufferGeometry();
+    bgGeo.setAttribute('position', new THREE.Float32BufferAttribute(bgPositions, 3));
+    bgGeo.setAttribute('aColor', new THREE.Float32BufferAttribute(bgColors, 3));
+    bgGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(bgSizes, 1));
+    bgGeo.setAttribute('aRandom', new THREE.Float32BufferAttribute(bgRandoms, 1));
+    bgGeo.setAttribute('aPhase', new THREE.Float32BufferAttribute(bgPhases, 1));
+    bgGeo.setAttribute('aLayer', new THREE.Float32BufferAttribute(bgLayers, 1));
+    bgGeo.setAttribute('aSpeed', new THREE.Float32BufferAttribute(bgSpeeds, 1));
+    bgGeo.setAttribute('aCenter', new THREE.Float32BufferAttribute(bgCenters, 3));
+    bgGeo.setAttribute('aScale', new THREE.Float32BufferAttribute(bgScales, 1));
+    bgGeo.setAttribute('aYaw', new THREE.Float32BufferAttribute(bgYaw, 1));
+    bgGeo.setAttribute('aLift', new THREE.Float32BufferAttribute(bgLift, 1));
+    const bgMat = particleMaterial(1.0);
+    bgMat.vertexShader = bgMat.vertexShader.replace('attribute vec3 aColor;', 'attribute vec3 aColor;\nattribute vec3 aCenter;\nattribute float aScale;\nattribute float aYaw;\nattribute float aLift;')
+      .replace('vec3 p = position;', `
+        vec3 local = position * aScale;
+        float c = cos(aYaw), s = sin(aYaw);
+        vec3 p = vec3(local.x * c - local.z * s, local.y, local.x * s + local.z * c) + aCenter;
+        p.y += mod(uTime * aLift + aPhase * 0.12 + 52.0, 58.0) - 29.0;
+      `);
+    bgMat.uniforms.uSize.value = 0.96;
+    const bgLanterns = new THREE.Points(bgGeo, bgMat);
+    bgLanterns.frustumCulled = false;
+    scene.add(bgLanterns);
+
+    // Ambient star ocean: slow helical drift and delicate depth attenuation, all animated in the GPU shader.
+    const envN = CONFIG.environmentParticles;
+    const envPos = new Float32Array(envN * 3), envColor = new Float32Array(envN * 3), envSize = new Float32Array(envN), envRand = new Float32Array(envN), envPhase = new Float32Array(envN), envLayer = new Float32Array(envN), envSpeed = new Float32Array(envN);
+    for (let i = 0; i < envN; i++) {
+      const k = i * 3;
+      const depth = 8 + rand() * 104;
+      const angle = rand() * Math.PI * 2;
+      const orbit = Math.sqrt(rand()) * 53;
+      envPos[k] = Math.cos(angle) * orbit;
+      envPos[k + 1] = (rand() - 0.5) * 55;
+      envPos[k + 2] = -depth;
+      const warm = rand() > 0.88;
+      const c = warm ? palette[5].clone().lerp(palette[2], rand() * 0.42) : new THREE.Color().setHSL(0.61 + rand() * 0.08, 0.3 + rand() * 0.35, 0.48 + rand() * 0.3);
+      envColor[k] = c.r; envColor[k + 1] = c.g; envColor[k + 2] = c.b;
+      envSize[i] = 0.25 + Math.pow(rand(), 5) * 2.7;
+      envRand[i] = rand(); envPhase[i] = angle; envLayer[i] = warm ? 0.55 : 0.12; envSpeed[i] = 0.1 + rand() * 0.8;
+    }
+    const envGeo = new THREE.BufferGeometry();
+    envGeo.setAttribute('position', new THREE.BufferAttribute(envPos, 3));
+    envGeo.setAttribute('aColor', new THREE.BufferAttribute(envColor, 3));
+    envGeo.setAttribute('aSize', new THREE.BufferAttribute(envSize, 1));
+    envGeo.setAttribute('aRandom', new THREE.BufferAttribute(envRand, 1));
+    envGeo.setAttribute('aPhase', new THREE.BufferAttribute(envPhase, 1));
+    envGeo.setAttribute('aLayer', new THREE.BufferAttribute(envLayer, 1));
+    envGeo.setAttribute('aSpeed', new THREE.BufferAttribute(envSpeed, 1));
+    const envMat = particleMaterial(CONFIG.environmentParticleSize * 1.25);
+    envMat.vertexShader = envMat.vertexShader.replace('vec3 p = position;', `
+      vec3 p = position;
+      float theta = uTime * (0.012 + aSpeed * 0.006) + aPhase;
+      float orbit = 0.06 + aRandom * 0.11;
+      p.x += cos(theta) * orbit;
+      p.z += sin(theta) * orbit;
+      p.y += sin(theta * 0.72 + aPhase * 2.0) * 0.09;
+    `);
+    const stars = new THREE.Points(envGeo, envMat);
+    stars.frustumCulled = false;
+    scene.add(stars);
+
+    // Defocused foreground motes provide a lens-like sense of scale without obscuring the lamp.
+    const bokehCount = 48;
+    const bPos = new Float32Array(bokehCount * 3), bCol = new Float32Array(bokehCount * 3), bSize = new Float32Array(bokehCount), bRnd = new Float32Array(bokehCount), bPh = new Float32Array(bokehCount), bLay = new Float32Array(bokehCount), bSpd = new Float32Array(bokehCount);
+    for (let i = 0; i < bokehCount; i++) {
+      const k = i * 3;
+      bPos[k] = (rand() - 0.5) * 28; bPos[k + 1] = (rand() - 0.5) * 20; bPos[k + 2] = 4 + rand() * 13;
+      const c = palette[5].clone().lerp(palette[2], rand() * 0.3);
+      bCol[k] = c.r; bCol[k + 1] = c.g; bCol[k + 2] = c.b;
+      bSize[i] = 2.2 + rand() * 5.6; bRnd[i] = rand(); bPh[i] = rand() * 6.283; bLay[i] = 0.18; bSpd[i] = 0.1 + rand() * 0.3;
+    }
+    const bGeo = new THREE.BufferGeometry();
+    bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bGeo.setAttribute('aColor', new THREE.BufferAttribute(bCol, 3)); bGeo.setAttribute('aSize', new THREE.BufferAttribute(bSize, 1)); bGeo.setAttribute('aRandom', new THREE.BufferAttribute(bRnd, 1)); bGeo.setAttribute('aPhase', new THREE.BufferAttribute(bPh, 1)); bGeo.setAttribute('aLayer', new THREE.BufferAttribute(bLay, 1)); bGeo.setAttribute('aSpeed', new THREE.BufferAttribute(bSpd, 1));
+    const bokehMat = particleMaterial(2.25);
+    bokehMat.uniforms.uSize.value = 2.1;
+    const bokeh = new THREE.Points(bGeo, bokehMat); bokeh.frustumCulled = false; scene.add(bokeh);
+
+    // A handful of tiny maple leaves, modeled as simple tapered shapes and kept visually subordinate.
+    const leafGroup = new THREE.Group(); scene.add(leafGroup);
+    const leafMat = new THREE.MeshBasicMaterial({ color: 0xb64f32, transparent: true, opacity: 0.44, side: THREE.DoubleSide });
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, 0.22); leafShape.quadraticCurveTo(0.08, 0.1, 0.19, 0.13); leafShape.lineTo(0.12, 0.02); leafShape.lineTo(0.22, -0.03); leafShape.lineTo(0.08, -0.07); leafShape.lineTo(0.04, -0.2); leafShape.lineTo(0, -0.1); leafShape.lineTo(-0.05, -0.2); leafShape.lineTo(-0.08, -0.06); leafShape.lineTo(-0.22, -0.02); leafShape.lineTo(-0.11, 0.03); leafShape.lineTo(-0.19, 0.12); leafShape.quadraticCurveTo(-0.07, 0.1, 0, 0.22);
+    const leafGeo = new THREE.ShapeGeometry(leafShape, 4);
+    const leaves = [];
+    for (let i = 0; i < 17; i++) {
+      const mesh = new THREE.Mesh(leafGeo, leafMat.clone());
+      mesh.material.color.set(i % 3 === 0 ? '#a84632' : i % 3 === 1 ? '#c46a35' : '#8f4039');
+      mesh.material.opacity = 0.2 + rand() * 0.24;
+      mesh.position.set((rand() - 0.5) * 23, (rand() - 0.5) * 18, 1 + rand() * 19);
+      mesh.scale.setScalar(0.38 + rand() * 0.8);
+      mesh.rotation.set(rand() * 6, rand() * 6, rand() * 6);
+      mesh.userData = { fall: 0.25 + rand() * 0.5, sway: rand() * 2, phase: rand() * 6.28 };
+      leafGroup.add(mesh); leaves.push(mesh);
+    }
+
+    const clock = new THREE.Clock();
+    function updateMaterial(mat, t) { if (mat.uniforms) mat.uniforms.uTime.value = t; }
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const t = clock.elapsedTime * CONFIG.floatSpeed;
+      const now = performance.now();
+      updateMaterial(mainLantern.material, t);
+      updateMaterial(bgMat, t); updateMaterial(envMat, t); updateMaterial(bokehMat, t);
+      const smoothing = 1 - Math.exp(-delta * CONFIG.positionSmoothing);
+      if (hasPalmTarget) {
+        palmSmoothedWorld.lerp(palmTargetWorld, smoothing);
+        handMarker.position.copy(palmSmoothedWorld);
+        handHalo.position.copy(palmSmoothedWorld);
+        handHalo.scale.setScalar(0.94 + Math.sin(t * 2.1) * 0.08);
+      }
+      for (const mat of [mainLantern.material, bgMat, envMat, bokehMat]) {
+        mat.uniforms.uHandPos.value.copy(palmSmoothedWorld);
+      }
+      if (stableGesture === 'OPEN' && openSince && cameraState === 'ON' && now - lastHandSeenAt < CONFIG.handLossGraceMs) {
+        holdDurationMs = now - openSince;
+      }
+      mainLantern.rotation.y = Math.sin(t * 0.19) * 0.055;
+      mainLantern.position.y = lanternY + Math.sin(t * 0.36) * 0.2;
+      for (const leaf of leaves) {
+        const d = leaf.userData;
+        leaf.position.y -= d.fall * 0.012;
+        leaf.position.x += Math.sin(t * 0.8 + d.phase) * 0.008 * d.sway;
+        leaf.rotation.x += 0.002 * d.sway; leaf.rotation.y += 0.003 * d.fall; leaf.rotation.z += 0.002 * d.sway;
+        if (leaf.position.y < -12) leaf.position.y = 12 + rand() * 4;
+      }
+      controls.update();
+      composer.render();
+      fpsFrames++;
+      if (now - fpsLastAt >= 500) {
+        currentFps = Math.round(fpsFrames * 1000 / (now - fpsLastAt));
+        fpsFrames = 0; fpsLastAt = now;
+      }
+      updateDebug();
+    }
+    animate();
+
+    function resize() {
+      const w = innerWidth, h = innerHeight;
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(devicePixelRatio, CONFIG.maxPixelRatio) * CONFIG.qualityScale);
+      renderer.setSize(w, h); composer.setSize(w, h);
+      for (const mat of [mainLantern.material, bgMat, envMat, bokehMat]) mat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+    }
+    addEventListener('resize', resize, { passive: true });
+    addEventListener('visibilitychange', () => { if (!document.hidden) clock.getDelta(); });
+  </script>
+</body>
+</html>
