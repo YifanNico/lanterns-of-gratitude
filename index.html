@@ -84,7 +84,9 @@
       font:15px/1.8 "Noto Serif SC",serif;text-shadow:0 1px 12px #100b07}
     #welcome::backdrop{background:radial-gradient(ellipse at center,rgba(7,8,16,.91),rgba(7,8,16,.52) 54%,rgba(7,8,16,.12))}
     #welcome h2{margin:0 0 16px;font:500 clamp(23px,4vw,32px)/1.45 "Noto Serif SC",serif}
-    #gestureGuide{margin:0}.welcome-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 18px;margin:22px 0 12px}
+    #welcomeStory{margin:-6px 0 20px;color:#f2dbb5}
+    #gestureGuide{margin:0 auto;max-width:27em;font-size:14px;line-height:1.9;color:#e3d6c3}
+    .welcome-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 18px;margin:22px 0 12px}
     .welcome-actions button{background:transparent;border:0;border-bottom:1px solid #aa9065;color:#f8e6c6;padding:8px 6px;min-height:44px;font:inherit;cursor:pointer}
     .welcome-actions button:first-child{background:#f4dfb7;color:#372917;padding-inline:18px;border-radius:2px}
     #welcomeNote{margin:0 auto;max-width:31em;font:12px/1.65 "Noto Serif SC",serif;color:#d9cbb7}
@@ -120,14 +122,15 @@
     <h1>感恩灯笼</h1>
     <p class="subtitle">——From Nico</p>
   </header>
-  <dialog id="welcome" aria-labelledby="welcomeTitle" aria-describedby="gestureGuide">
-    <h2 id="welcomeTitle">开启摄像头，用手接灯？</h2>
-    <p id="gestureGuide">移动手掌环顾夜空，张掌停稳片刻接住天灯。<br>读完后，握拳收信，或张掌停稳再上抬放飞。</p>
+  <dialog id="welcome" aria-labelledby="welcomeTitle" aria-describedby="welcomeStory gestureGuide">
+    <h2 id="welcomeTitle">你收到了一封来自 Nico 的信</h2>
+    <p id="welcomeStory">信藏在夜空中的一盏灯笼里。</p>
+    <p id="gestureGuide">移动手掌环顾夜空。张开手掌，停稳片刻，灯笼就会落向掌心，展开这封信。<br>读完后用手掌上托，把灯笼放飞到天空吧~</p>
     <div class="welcome-actions">
       <button id="startCamera" type="button">开启摄像头</button>
       <button id="startPointer" type="button">不开启，用鼠标或触摸</button>
     </div>
-    <p id="welcomeNote" role="status">手势仅在本机识别。鼠标或触摸模式下，拖动转动视角，轻点接灯。</p>
+    <p id="welcomeNote" role="status"></p>
   </dialog>
   <button id="cameraToggle" class="camera-toggle" type="button" aria-pressed="false">Enable Camera</button>
   <button id="openLetter" class="no-camera" type="button" hidden>重新展开</button>
@@ -197,7 +200,8 @@
     };
     
     const CONFIG = {
-      CENTER_TIME:1.2, REVEAL_TIME:4, MIN_READ:5,
+      CENTER_TIME:1.2, REVEAL_TIME:4,
+      PALM_ORBIT_SENSITIVITY: 0.8,
       mainLanternParticles: 36000,
       backgroundLanterns: 76,
       backgroundParticlesPerLantern: [220, 760],
@@ -1139,25 +1143,27 @@
     document.addEventListener('click',unlock,{capture:true});
     volume.addEventListener('input',()=>{unlock();music.volume=Number(volume.value)*volumeFactor;});
     mute.onclick=()=>{music.muted=!music.muted;mute.textContent=music.muted?'Off':'♪';mute.setAttribute('aria-pressed',String(music.muted));};
-    const interaction={state:'IDLE',enteredAt:performance.now(),ready:false,armed:true,explode:0,energy:.14};
+    const interaction={state:'IDLE',enteredAt:performance.now(),armed:true,explode:0,energy:.14};
     const lampPosition=interactionGroup.position,target=new THREE.Vector3(),start=new THREE.Vector3(),center=new THREE.Vector3(),tmp=new THREE.Vector3();
     const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3());
     const home=lampPosition.clone(),defaultCamera=camera.position.clone(),defaultFocus=controls.target.clone();
     const resetEye=new THREE.Vector3(),resetFocus=new THREE.Vector3();
     const clamp=x=>Math.min(1,Math.max(0,x)),smooth=x=>{x=clamp(x);return x*x*(3-2*x);},fast=x=>1-Math.pow(1-clamp(x),3);
-    const eventAllowed=()=>interaction.state==='READING'&&interaction.ready;
+    const eventAllowed=()=>interaction.state==='READING';
     function syncUI(){
       const state=interaction.state;
       manual.hidden=state!=='CLOSED';
-      close.hidden=release.hidden=state!=='READING';release.disabled=!eventAllowed();
+      const showButtons = eventAllowed() && (pointerMode || cameraState !== 'ON');
+      close.hidden = release.hidden = !showButtons;
+      close.parentElement.hidden = !showButtons;
       document.body.classList.toggle('reading-mode',['READING','CENTERING'].includes(state));
       syncFlightHint();
     }
     function syncFlightHint(){
       const hint=$('flightHint');
-      const msg=interaction.state!=='READING'?'':!interaction.ready?'安心阅读，稍后可放飞天灯。':
+      const msg=interaction.state!=='READING'?'':
         pointerMode||cameraState!=='ON'?'读完后，点下方按钮放飞天灯。':
-        liftBase?'现在，保持张掌，慢慢向上抬手。':'想放飞时，在镜头下半部张开手掌，稍停片刻。';
+        liftBase?'保持张掌，轻轻上托放飞天灯。':'握拳收信。想放飞时，张掌停稳，再轻轻上托。';
       if(hint.textContent!==msg)hint.textContent=msg;
     }
     const orbitDelta = new THREE.Vector2();
@@ -1183,8 +1189,8 @@
       if(fresh){holdAnchor.set(x,y);orbitDelta.set(0,0);return false;}
       // The same drag direction as OrbitControls. Ignore sub-pixel jitter.
       if(Math.hypot(dx,dy)>.0025){
-        orbitDelta.x-=dx*5.4;
-        orbitDelta.y-=dy*3.0;
+        orbitDelta.x-=dx*5.4*CONFIG.PALM_ORBIT_SENSITIVITY;
+        orbitDelta.y-=dy*3.0*CONFIG.PALM_ORBIT_SENSITIVITY;
       }
       if(Math.hypot(x-holdAnchor.x,y-holdAnchor.y)>.020){
         holdAnchor.set(x,y);
@@ -1211,7 +1217,7 @@
         controls.target.set(0,0,-27).applyMatrix4(finaleFrame.value);
       }
       if(state==='CLOSED'){clearOpen();openEventSent=false;}
-      interaction.state=state;interaction.enteredAt=performance.now();interaction.ready=false;
+      interaction.state=state;interaction.enteredAt=performance.now();
       controls.autoRotate=state==='IDLE';controls.enabled=state==='IDLE'||state==='FINALE';
       setInteractionState(state);syncUI();
     }
@@ -1345,7 +1351,6 @@
       }else if(state==='READING'){
         // No camera, pointer, hand, group or DOM layout writes while reading.
         energy=.57;explode=1;
-        if(!interaction.ready&&e>=CONFIG.REVEAL_TIME+CONFIG.MIN_READ){interaction.ready=true;resetLift();syncUI();}
       }else if(state==='COLLAPSING'||state==='RELEASING'){
         const c=CONFIG.COLLAPSE_DURATION,q=fast(e/c);
         energy=.46+.64*Math.exp(-Math.pow((e-c)/.15,2));explode=1-q;
